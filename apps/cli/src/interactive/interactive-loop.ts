@@ -1,7 +1,8 @@
 import { createInterface } from 'node:readline'
-import { echo } from '@plantbase/core'
+import { askAgent, type JsonlLogger } from '@plantbase/core'
+import type { AgentConfig } from '../config/agent-config'
 
-export function startInteractiveLoop(): void {
+export function startInteractiveLoop(agentConfig: AgentConfig, logger: JsonlLogger): void {
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -17,8 +18,19 @@ export function startInteractiveLoop(): void {
       rl.close()
       return
     }
-    console.log(echo(trimmed))
-    rl.prompt()
+
+    rl.pause()
+    void (async () => {
+      try {
+        const result = await askAgent(trimmed, { ...agentConfig, logger })
+        console.log(result.answer)
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : 'Ismeretlen hiba történt.')
+      } finally {
+        rl.resume()
+        rl.prompt()
+      }
+    })()
   })
 
   rl.on('close', () => {

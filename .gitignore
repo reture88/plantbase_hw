@@ -21,6 +21,7 @@ prisma/*.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+/logs/
 
 # OS / editor
 .DS_Store
