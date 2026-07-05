@@ -1,0 +1,32 @@
+{
+  "name": "plantbase",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "nx": "^23.0.1",
+    "@nx/js": "^23.0.1",
+    "@nx/node": "^23.0.1",
+    "@nx/eslint": "^23.0.1",
+    "eslint": "^10.6.0",
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.4",
+    "vitest": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.9",
+    "tsx": "^4.23.0",
+    "prisma": "^7.8.0"
+  }
+}
