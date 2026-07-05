@@ -63,7 +63,7 @@ Kívül (későbbi órák):
 - **FR3, Válasz:** a lekérdezés eredményéből természetes nyelvű választ ad.
 - **FR4, Naplózás:** minden interakciót logol (`logs/<timestamp>.jsonl`): system prompt, üzenetek, generált SQL, eredmény, válasz, token-felhasználás.
 - **FR5, Átláthatóság:** `--show-prompt` mód, amely kiírja a teljes üzenet-tömböt.
-- **FR6, Árajánlat-export:** `plantbase quote "<igény>"` parancs — az összeállított növény-ajánlás alapján formázott, tételes Excel (.xlsx) árajánlatot generál (Anthropic Agent Skill + code execution) és helyben elmenti.
+- **FR6, Árajánlat-export:** ha a felhasználó az `ask` parancs vagy az interaktív mód üzenetében explicit fájl-exportot kér (pl. "...a listát mentsd ki fileba"), az agent válasza alapján formázott, tételes Excel (.xlsx) árajánlatot generál (Anthropic Agent Skill + code execution) és helyben elmenti. Nincs önálló `quote` parancs — a felismerés a request-classifier (lásd `architektura.md`, 9. pont) feladata; export-utasítás nélkül fájl sosem jön létre.
 
 ### Nem-funkcionális (NFR)
 
