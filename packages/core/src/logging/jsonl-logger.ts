@@ -1,12 +1,21 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+export type ToolCallLogEntry = {
+  tool: string
+  input: unknown
+  resultRowCount?: number
+  resultSample?: unknown
+  durationMs: number
+  error?: string
+}
+
 export type InteractionLogEntry = {
   timestamp: string
   question: string
   systemPrompt: string
   messages: unknown
-  toolCalls: unknown[]
+  toolCalls: ToolCallLogEntry[]
   finalAnswer: string
   usage: { inputTokens: number; outputTokens: number; totalTokens: number }
   durationMs: number

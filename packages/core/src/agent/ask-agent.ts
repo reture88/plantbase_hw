@@ -1,14 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { Pool } from 'pg'
 import { z } from 'zod'
-import type { JsonlLogger } from '../logging/jsonl-logger'
+import type { JsonlLogger, ToolCallLogEntry } from '../logging/jsonl-logger'
+import { createRunSqlHandler, runSqlToolDefinition } from './run-sql-tool'
+import { SQL_AGENT_SYSTEM_PROMPT } from './schema-context'
 import { SIMPLE_SYSTEM_PROMPT } from './simple-system-prompt'
 
 const QuestionSchema = z.string().min(1, 'A kérdés nem lehet üres.')
 
-type ChatMessage = {
-  role: 'user' | 'assistant'
-  content: string
-}
+const MAX_TOOL_USE_TURNS = 8
+const MAX_TOKENS = 1024
+const TOOL_RESULT_SAMPLE_SIZE = 5
 
 export type Usage = {
   inputTokens: number
@@ -20,13 +22,30 @@ export type AskAgentConfig = {
   apiKey: string
   model: string
   logger?: JsonlLogger
+  /** Ha meg van adva, a runSql tool bekapcsol és a teljes SQL-agent system prompt aktiválódik. */
+  runSqlPool?: Pool
 }
 
 export type AskAgentResult = {
   answer: string
   systemPrompt: string
-  messages: ChatMessage[]
+  messages: Anthropic.MessageParam[]
   usage: Usage
+}
+
+function extractText(content: Anthropic.ContentBlock[]): string {
+  return content
+    .map((block) => (block.type === 'text' ? block.text : ''))
+    .filter(Boolean)
+    .join('\n')
+}
+
+function addUsage(total: Usage, response: Anthropic.Message): Usage {
+  return {
+    inputTokens: total.inputTokens + response.usage.input_tokens,
+    outputTokens: total.outputTokens + response.usage.output_tokens,
+    totalTokens: total.totalTokens + response.usage.input_tokens + response.usage.output_tokens,
+  }
 }
 
 export async function askAgent(question: string, config: AskAgentConfig): Promise<AskAgentResult> {
@@ -34,32 +53,80 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
   const startedAt = Date.now()
 
   const client = new Anthropic({ apiKey: config.apiKey })
-  const messages: ChatMessage[] = [{ role: 'user', content: parsedQuestion }]
+  const useSqlAgent = Boolean(config.runSqlPool)
+  const systemPrompt = useSqlAgent ? SQL_AGENT_SYSTEM_PROMPT : SIMPLE_SYSTEM_PROMPT
+  const runSqlHandler = config.runSqlPool ? createRunSqlHandler(config.runSqlPool) : undefined
+
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: parsedQuestion }]
+  const toolCalls: ToolCallLogEntry[] = []
 
   let answer = ''
   let usage: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   let errorMessage: string | undefined
 
   try {
-    const response = await client.messages.create({
-      model: config.model,
-      max_tokens: 1024,
-      system: SIMPLE_SYSTEM_PROMPT,
-      messages,
-    })
+    for (let turn = 0; turn < MAX_TOOL_USE_TURNS; turn++) {
+      const response = await client.messages.create({
+        model: config.model,
+        max_tokens: MAX_TOKENS,
+        system: systemPrompt,
+        messages,
+        ...(runSqlHandler ? { tools: [runSqlToolDefinition] } : {}),
+      })
 
-    answer = response.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .filter(Boolean)
-      .join('\n')
+      usage = addUsage(usage, response)
+      messages.push({ role: 'assistant', content: response.content })
 
-    usage = {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-      totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      if (response.stop_reason !== 'tool_use' || !runSqlHandler) {
+        answer = extractText(response.content)
+        break
+      }
+
+      const toolResultContent: Anthropic.ContentBlockParam[] = []
+
+      for (const block of response.content) {
+        if (block.type !== 'tool_use') continue
+
+        const toolCallStartedAt = Date.now()
+        try {
+          const result = await runSqlHandler(block.input)
+          toolResultContent.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result.rows),
+          })
+          toolCalls.push({
+            tool: block.name,
+            input: block.input,
+            resultRowCount: result.rowCount,
+            resultSample: result.rows.slice(0, TOOL_RESULT_SAMPLE_SIZE),
+            durationMs: Date.now() - toolCallStartedAt,
+          })
+        } catch (toolError) {
+          const toolErrorMessage = toolError instanceof Error ? toolError.message : 'Ismeretlen hiba.'
+          toolResultContent.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: toolErrorMessage,
+            is_error: true,
+          })
+          toolCalls.push({
+            tool: block.name,
+            input: block.input,
+            durationMs: Date.now() - toolCallStartedAt,
+            error: toolErrorMessage,
+          })
+        }
+      }
+
+      messages.push({ role: 'user', content: toolResultContent })
     }
 
-    return { answer, systemPrompt: SIMPLE_SYSTEM_PROMPT, messages, usage }
+    if (!answer) {
+      answer = 'Nem sikerült választ generálni a megengedett lépésszámon belül.'
+    }
+
+    return { answer, systemPrompt, messages, usage }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : 'Ismeretlen hiba történt.'
     throw error
@@ -67,9 +134,9 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
     config.logger?.append({
       timestamp: new Date().toISOString(),
       question: parsedQuestion,
-      systemPrompt: SIMPLE_SYSTEM_PROMPT,
+      systemPrompt,
       messages,
-      toolCalls: [],
+      toolCalls,
       finalAnswer: answer,
       usage,
       durationMs: Date.now() - startedAt,
