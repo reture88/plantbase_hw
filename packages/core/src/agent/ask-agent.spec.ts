@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JsonlLogger } from '../logging/jsonl-logger'
 
 const createMock = vi.fn()
@@ -10,6 +10,10 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }))
 
 const { askAgent } = await import('./ask-agent')
+
+beforeEach(() => {
+  createMock.mockReset()
+})
 
 function createFakeLogger(): JsonlLogger & { entries: unknown[] } {
   const entries: unknown[] = []
@@ -90,6 +94,39 @@ describe('askAgent', () => {
     expect(result.usage).toEqual({ inputTokens: 35, outputTokens: 18, totalTokens: 53 })
     expect(logger.entries).toHaveLength(1)
     expect((logger.entries[0] as { toolCalls: unknown[] }).toolCalls).toHaveLength(1)
+
+    const requestArgs = createMock.mock.calls[0][0] as { tools?: { name: string }[] }
+    expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories', 'web_search'])
+  })
+
+  it('should resend and continue when a server-side tool (web_search) pauses the turn', async () => {
+    const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
+    const logger = createFakeLogger()
+
+    createMock
+      .mockResolvedValueOnce({
+        stop_reason: 'pause_turn',
+        content: [
+          { type: 'server_tool_use', id: 'srv_1', name: 'web_search', input: { query: 'pozsgás gondozása télen' } },
+        ],
+        usage: { input_tokens: 30, output_tokens: 15 },
+      })
+      .mockResolvedValueOnce({
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'Télen ritkábban öntözd, fényes helyre tedd.' }],
+        usage: { input_tokens: 20, output_tokens: 12 },
+      })
+
+    const result = await askAgent('hogyan gondozzam a pozsgásaimat télen?', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+      logger,
+      runSqlPool: fakePool,
+    })
+
+    expect(createMock).toHaveBeenCalledTimes(2)
+    expect(result.answer).toBe('Télen ritkábban öntözd, fényes helyre tedd.')
+    expect(result.usage).toEqual({ inputTokens: 50, outputTokens: 27, totalTokens: 77 })
   })
 
   it('should run the listCategories tool and feed the result back for a final answer', async () => {

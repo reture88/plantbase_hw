@@ -6,6 +6,7 @@ import { createListCategoriesHandler, LIST_CATEGORIES_TOOL_NAME, listCategoriesT
 import { createRunSqlHandler, RUN_SQL_TOOL_NAME, runSqlToolDefinition } from './run-sql-tool'
 import { SQL_AGENT_SYSTEM_PROMPT } from './schema-context'
 import { SIMPLE_SYSTEM_PROMPT } from './simple-system-prompt'
+import { webSearchToolDefinition } from './web-search-tool'
 
 const QuestionSchema = z.string().min(1, 'A kérdés nem lehet üres.')
 
@@ -73,11 +74,19 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages,
-        ...(runSqlHandler ? { tools: [runSqlToolDefinition, listCategoriesToolDefinition] } : {}),
+        ...(runSqlHandler
+          ? { tools: [runSqlToolDefinition, listCategoriesToolDefinition, webSearchToolDefinition] }
+          : {}),
       })
 
       usage = addUsage(usage, response)
       messages.push({ role: 'assistant', content: response.content })
+
+      // A web_search szerver-oldali tool a saját belső iterációs limitjét elérve
+      // pause_turn-nel áll meg; ilyenkor csak újra kell küldeni az eddigi üzeneteket.
+      if (response.stop_reason === 'pause_turn') {
+        continue
+      }
 
       if (response.stop_reason !== 'tool_use' || !runSqlHandler) {
         answer = extractText(response.content)
