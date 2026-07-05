@@ -177,7 +177,7 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 
 ## Végrehajtási állapot
 
-- **A0–A5:** kész. A user kérésére az A2–A6 lépések megszakítás nélkül, egyben készülnek el; a B1/B2/B3 fázisok után viszont **külön-külön megállunk tesztelésre**.
+- **A) teljes egészében kész** (A0–A6), a user kérésére megszakítás nélkül, egyben. A B1/B2/B3 fázisok után viszont **külön-külön megállunk tesztelésre**.
 
 ### Végrehajtás közben felmerült eltérések a tervhez képest
 
