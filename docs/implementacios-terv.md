@@ -177,5 +177,12 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 
 ## Végrehajtási állapot
 
-- **A0–A1:** kész (`feat/plantbase-mvp` branch, Nx/pnpm workspace bootstrap).
-- A user kérésére az A2–A6 lépések megszakítás nélkül, egyben készülnek el; a B1/B2/B3 fázisok után viszont **külön-külön megállunk tesztelésre**.
+- **A0–A5:** kész. A user kérésére az A2–A6 lépések megszakítás nélkül, egyben készülnek el; a B1/B2/B3 fázisok után viszont **külön-külön megállunk tesztelésre**.
+
+### Végrehajtás közben felmerült eltérések a tervhez képest
+
+- **Prisma verzió: 6.19.3, nem a legfrissebb 7.x.** Prisma 7 két, egymást követő, gyakorlatban tesztelt, áthidalhatatlan törést hozott a változatlanul hagyandó `seed.ts`-hez képest: (1) az új alapértelmezett `prisma-client` generátor kötelező egyedi `output` útvonalat követel, ami megváltoztatná a `seed.ts` `import ... from '@prisma/client'` sorát; (2) a `schema.prisma` `datasource` blokkjában a `url` mező HARD hibát dob (`P1012`), a kapcsolati string kizárólag a `PrismaClient` konstruktorának explicit átadható paraméterén keresztül állítható be — ez a `seed.ts` `new PrismaClient()` (paraméter nélküli) hívását törné el. Mivel a `seed.ts`-t nem módosítjuk, a Prisma 6 utolsó stabil kiadására (6.19.3) álltunk, ami a klasszikus, env-alapú `url`-t és a paraméter nélküli klienskonstruktort is támogatja.
+- **`@prisma/client` csak a gyökér `package.json`-ban szerepel függőségként, a `packages/db`-ében nem.** A `prisma-client-js` generátor a `@prisma/client`-et a `prisma` CLI csomag testvérkönyvtáraként várja; ha `packages/db` saját, külön linkelt példányt kap pnpm-től, az beárnyékolja a gyökér-példányt a Node-feloldás során, és a `prisma generate` `"Could not resolve @prisma/client"` hibával elszáll beágyazott séma-útvonal esetén. A `packages/db/src/index.ts` így a gyökér csomagra hagyatkozik (működik, mert a Node modul-feloldás felfelé lépked a könyvtárfában).
+- **Host port 5433 helyett 5434.** Egy másik, ettől független helyi projekt (`C:\Users\rafi\dev_projects\plantbase`, `_hw` nélkül) már lefoglalta az 5433-as portot egy saját, futó Postgres-konténerrel — ezt a konténert értelemszerűen nem bántottuk. A `.env`, `.env.example` és a `docker-compose.yml` ennek megfelelően 5434-re lett módosítva.
+- **Postgres image: 18-alpine, kötet-mountolás `/var/lib/postgresql`-re (nem `/var/lib/postgresql/data`-ra).** A Postgres 18-as image-ek új, `pg_ctlcluster`-kompatibilis adatkönyvtár-konvenciót vezettek be; a régi, közvetlenül `/var/lib/postgresql/data`-ra mountolt kötet ezzel a verzióval elindulási hibát okoz.
+- **A `seed/plants.ts` valójában 30 növényt tartalmaz**, nem 28-at (a korábbi feltáró összegzés tévesen számolt) — ez összhangban van a `seed/README.md` "~30" jelzésével. Az NFR1-ellenőrzés `SELECT count(*)` eredménye ennek megfelelően 30.
