@@ -177,7 +177,8 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 
 ## Végrehajtási állapot
 
-- **A) teljes egészében kész** (A0–A6), a user kérésére megszakítás nélkül, egyben. A B1/B2/B3 fázisok után viszont **külön-külön megállunk tesztelésre**.
+- **A) teljes egészében kész** (A0–A6), a user kérésére megszakítás nélkül, egyben.
+- **B1, B2, B3 mind kész** — mindegyik után külön-külön megállt a fejlesztés kézi tesztelésre, ahogy a user kérte.
 
 ### Végrehajtás közben felmerült eltérések a tervhez képest
 
@@ -186,3 +187,4 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 - **Host port 5433 helyett 5434.** Egy másik, ettől független helyi projekt (`C:\Users\rafi\dev_projects\plantbase`, `_hw` nélkül) már lefoglalta az 5433-as portot egy saját, futó Postgres-konténerrel — ezt a konténert értelemszerűen nem bántottuk. A `.env`, `.env.example` és a `docker-compose.yml` ennek megfelelően 5434-re lett módosítva.
 - **Postgres image: 18-alpine, kötet-mountolás `/var/lib/postgresql`-re (nem `/var/lib/postgresql/data`-ra).** A Postgres 18-as image-ek új, `pg_ctlcluster`-kompatibilis adatkönyvtár-konvenciót vezettek be; a régi, közvetlenül `/var/lib/postgresql/data`-ra mountolt kötet ezzel a verzióval elindulási hibát okoz.
 - **A `seed/plants.ts` valójában 30 növényt tartalmaz**, nem 28-at (a korábbi feltáró összegzés tévesen számolt) — ez összhangban van a `seed/README.md` "~30" jelzésével. Az NFR1-ellenőrzés `SELECT count(*)` eredménye ennek megfelelően 30.
+- **Nx/TypeScript projekt-referencia javítás (B3):** amint az `apps/cli` a `@plantbase/core` valódi moduljait kezdte importálni (nem csak a placeholder `echo()`-t), előjött egy rejtett hiba: `apps/cli` tsconfig-ja nem hivatkozott a `packages/core` projektre, és a `packages/core/tsconfig.lib.json` `outDir`-ja (`dist/out-tsc`) nem egyezett a tényleges Nx build kimenettel (`dist/packages/core`) — összetett (`composite`) projekteknél ennek egyeznie kell. Hozzáadtam a hiányzó referenciát, összehangoltam az `outDir`-t, és `declaration:false`-ra állítottam a `cli` build targetjét (egy app-nak nincs szüksége `.d.ts` kimenetre, és a `tsconfig.base.json`-ból örökölt `composite:true` egyébként csendben rákényszerítette volna a deklaráció-generálást egy hibás esbuild-oldali típusellenőrzéssel együtt). A javítást független `tsc --noEmit` futtatással is leellenőriztem.
