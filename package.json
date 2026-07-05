@@ -10,10 +10,12 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "cli": "tsx apps/cli/src/main.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@nx/esbuild": "23.0.1",
     "@nx/eslint": "^23.0.1",
     "@nx/js": "^23.0.1",
     "@nx/node": "^23.0.1",
@@ -25,8 +27,10 @@
     "@typescript-eslint/parser": "^8.62.1",
     "@vitest/coverage-v8": "^4.1.9",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.27.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^27.1.0",
     "jsonc-eslint-parser": "^2.1.0",
     "nx": "^23.0.1",
     "prettier": "^3.9.4",
@@ -38,6 +42,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3"
+    "@prisma/client": "6.19.3",
+    "commander": "^15.0.0"
   }
 }
