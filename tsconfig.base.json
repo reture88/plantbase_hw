@@ -14,7 +14,8 @@
     "declarationMap": true,
     "composite": true,
     "paths": {
-      "@plantbase/core": ["./packages/core/src/index.ts"]
+      "@plantbase/core": ["./packages/core/src/index.ts"],
+      "@plantbase/db": ["./packages/db/src/index.ts"]
     }
   }
 }
