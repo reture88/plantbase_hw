@@ -4,7 +4,7 @@ import tsParser from '@typescript-eslint/parser'
 import prettier from 'eslint-config-prettier'
 
 export default [
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**', '**/vitest.config.*.timestamp*'] },
   js.configs.recommended,
   {
     files: ['**/*.ts'],

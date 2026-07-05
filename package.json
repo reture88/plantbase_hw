@@ -13,20 +13,28 @@
     "db:studio": "prisma studio"
   },
   "devDependencies": {
-    "typescript": "^6.0.3",
-    "nx": "^23.0.1",
+    "@eslint/js": "^10.0.1",
+    "@nx/eslint": "^23.0.1",
     "@nx/js": "^23.0.1",
     "@nx/node": "^23.0.1",
-    "@nx/eslint": "^23.0.1",
-    "eslint": "^10.6.0",
-    "@eslint/js": "^10.0.1",
+    "@nx/vite": "23.0.1",
+    "@nx/vitest": "23.0.1",
+    "@swc/helpers": "~0.5.18",
+    "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",
-    "eslint-config-prettier": "^10.1.8",
-    "prettier": "^3.9.4",
-    "vitest": "^4.1.9",
     "@vitest/coverage-v8": "^4.1.9",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jsonc-eslint-parser": "^2.1.0",
+    "nx": "^23.0.1",
+    "prettier": "^3.9.4",
+    "prisma": "^7.8.0",
+    "tslib": "^2.3.0",
     "tsx": "^4.23.0",
-    "prisma": "^7.8.0"
-  }
+    "typescript": "^6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {}
 }

@@ -12,6 +12,9 @@
     "isolatedModules": true,
     "declaration": true,
     "declarationMap": true,
-    "composite": true
+    "composite": true,
+    "paths": {
+      "@plantbase/core": ["./packages/core/src/index.ts"]
+    }
   }
 }

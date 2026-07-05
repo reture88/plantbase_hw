@@ -13,13 +13,25 @@ importers:
         version: 10.0.1(eslint@10.6.0(jiti@2.7.0))
       '@nx/eslint':
         specifier: ^23.0.1
-        version: 23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)
+        version: 23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)
       '@nx/js':
         specifier: ^23.0.1
         version: 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
       '@nx/node':
         specifier: ^23.0.1
-        version: 23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(@zkochan/js-yaml@0.0.7)(babel-plugin-macros@3.1.0)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)(typescript@6.0.3)
+        version: 23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(@zkochan/js-yaml@0.0.7)(babel-plugin-macros@3.1.0)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)(typescript@6.0.3)
+      '@nx/vite':
+        specifier: 23.0.1
+        version: 23.0.1(@babel/traverse@7.29.7)(@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1))(nx@23.0.1)(typescript@6.0.3)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.9)
+      '@nx/vitest':
+        specifier: 23.0.1
+        version: 23.0.1(@babel/traverse@7.29.7)(@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1))(nx@23.0.1)(typescript@6.0.3)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.9)
+      '@swc/helpers':
+        specifier: ~0.5.18
+        version: 0.5.23
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.62.1
         version: 8.62.1(@typescript-eslint/parser@8.62.1(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
@@ -35,6 +47,9 @@ importers:
       eslint-config-prettier:
         specifier: ^10.1.8
         version: 10.1.8(eslint@10.6.0(jiti@2.7.0))
+      jsonc-eslint-parser:
+        specifier: ^2.1.0
+        version: 2.4.2
       nx:
         specifier: ^23.0.1
         version: 23.0.1
@@ -44,15 +59,27 @@ importers:
       prisma:
         specifier: ^7.8.0
         version: 7.8.0(@types/react@19.2.17)(magicast@0.5.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
       tsx:
         specifier: ^4.23.0
         version: 4.23.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      vite:
+        specifier: ^8.0.0
+        version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
       vitest:
         specifier: ^4.1.9
-        version: 4.1.9(@types/node@26.1.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+        version: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+
+  packages/core:
+    dependencies:
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
 
 packages:
 
@@ -1168,6 +1195,25 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@nx/vite@23.0.1':
+    resolution: {integrity: sha512-1zf+Ow8ORL4yL5AhcNqz1MiDPekitcSSZ+PNz2stEG9+4YjJ2Q5/9UPwVXTy7dAaUsAq9WJWzgzRdtT2MORh+w==}
+    peerDependencies:
+      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+
+  '@nx/vitest@23.0.1':
+    resolution: {integrity: sha512-aIf8b+pn3zWkCy4TaVOvHDZ1UKZDtc1zUuDSHdbfXPAfIAoRoT4B2Ae63ARGW+aru1qQIM0UMec4LNprIN1c/A==}
+    peerDependencies:
+      '@nx/eslint': 23.0.1
+      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+      vitest: ^3.0.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@nx/eslint':
+        optional: true
+      vite:
+        optional: true
+      vitest:
+        optional: true
+
   '@nx/workspace@23.0.1':
     resolution: {integrity: sha512-VdbvMTSEzp3ONZwiy83XEu8ktykC8aEI7M4mqKs5RNKHBFg3jtao2NFo3wDqHqnn1q9Fdaj8EbyUn08BUR5L3w==}
 
@@ -1413,6 +1459,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@swc/helpers@0.5.23':
+    resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
+
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
@@ -1457,6 +1506,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/node@22.20.0':
+    resolution: {integrity: sha512-QWlFW2wf3nTjC13/DqRnBpR4ZO36VJH/JVBkA/vcnmbTBNQIlnObqyqZE1tUR7+Ni23Lda8R1BxMfbXRpCUx5g==}
 
   '@types/node@26.1.0':
     resolution: {integrity: sha512-O0A1G3xPGy4w7AgQdAQYUlQ+BKk2Oovw8eRpofyp5KdBZULnbe+WqaOVNrm705SHphCiG4XHsACrSmPu1f+Kgw==}
@@ -2210,6 +2262,10 @@ packages:
     resolution: {integrity: sha512-7p3DrVEIopW1B1avAGLuCSh1jubc01H2JHc8B4qqGblmg5gI9yumBgACjWo4JlIc04ufug4xJ3SQI8HkS/Rgzw==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  espree@9.6.1:
+    resolution: {integrity: sha512-oruZaFkjorTpF32kDSI5/75ViwGeZginGGy2NoOSg3Q9bnwlnmDm4HLnkl0RE3n+njDXR037aY1+x58Z/zFdwQ==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
   esprima@4.0.1:
     resolution: {integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==}
     engines: {node: '>=4'}
@@ -2675,6 +2731,10 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jsonc-eslint-parser@2.4.2:
+    resolution: {integrity: sha512-1e4qoRgnn448pRuMvKGsFFymUCquZV0mpGgOyIKNgD3JVDTsVJyRBGH/Fm0tBb8WsWGgmB1mDe6/yJMQM37DUA==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -3363,6 +3423,9 @@ packages:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
+
+  undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
@@ -4772,7 +4835,7 @@ snapshots:
     transitivePeerDependencies:
       - nx
 
-  '@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)':
+  '@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)':
     dependencies:
       '@nx/devkit': 23.0.1(nx@23.0.1)
       '@nx/js': 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
@@ -4781,7 +4844,7 @@ snapshots:
       tslib: 2.8.1
       typescript: 5.9.3
     optionalDependencies:
-      '@nx/jest': 23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)
+      '@nx/jest': 23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)
       '@zkochan/js-yaml': 0.0.7
     transitivePeerDependencies:
       - '@babel/traverse'
@@ -4793,7 +4856,7 @@ snapshots:
       - supports-color
       - verdaccio
 
-  '@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)':
+  '@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)':
     dependencies:
       '@jest/reporters': 30.4.1
       '@jest/test-result': 30.4.1
@@ -4801,7 +4864,7 @@ snapshots:
       '@nx/js': 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
       '@phenomnomnominal/tsquery': 6.2.0(typescript@6.0.3)
       identity-obj-proxy: 3.0.0
-      jest-config: 30.4.2(@types/node@26.1.0)(babel-plugin-macros@3.1.0)
+      jest-config: 30.4.2(@types/node@22.20.0)(babel-plugin-macros@3.1.0)
       jest-resolve: 30.4.1
       jest-util: 30.4.1
       minimatch: 10.2.5
@@ -4862,12 +4925,12 @@ snapshots:
       - nx
       - supports-color
 
-  '@nx/node@23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(@zkochan/js-yaml@0.0.7)(babel-plugin-macros@3.1.0)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)(typescript@6.0.3)':
+  '@nx/node@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(@zkochan/js-yaml@0.0.7)(babel-plugin-macros@3.1.0)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)(typescript@6.0.3)':
     dependencies:
       '@nx/devkit': 23.0.1(nx@23.0.1)
       '@nx/docker': 23.0.1(nx@23.0.1)
-      '@nx/eslint': 23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)
-      '@nx/jest': 23.0.1(@babel/traverse@7.29.7)(@types/node@26.1.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)
+      '@nx/eslint': 23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)
+      '@nx/jest': 23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3)
       '@nx/js': 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
       kill-port: 1.6.1
       semver: 7.8.5
@@ -4922,6 +4985,54 @@ snapshots:
 
   '@nx/nx-win32-x64-msvc@23.0.1':
     optional: true
+
+  '@nx/vite@23.0.1(@babel/traverse@7.29.7)(@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1))(nx@23.0.1)(typescript@6.0.3)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.9)':
+    dependencies:
+      '@nx/devkit': 23.0.1(nx@23.0.1)
+      '@nx/js': 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
+      '@nx/vitest': 23.0.1(@babel/traverse@7.29.7)(@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1))(nx@23.0.1)(typescript@6.0.3)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.9)
+      '@phenomnomnominal/tsquery': 6.2.0(typescript@6.0.3)
+      ajv: 8.20.0
+      enquirer: 2.3.6
+      picomatch: 4.0.4
+      semver: 7.8.5
+      tsconfig-paths: 4.2.0
+      tslib: 2.8.1
+      vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@babel/traverse'
+      - '@nx/eslint'
+      - '@swc-node/register'
+      - '@swc/cli'
+      - '@swc/core'
+      - debug
+      - nx
+      - supports-color
+      - typescript
+      - verdaccio
+      - vitest
+
+  '@nx/vitest@23.0.1(@babel/traverse@7.29.7)(@nx/eslint@23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1))(nx@23.0.1)(typescript@6.0.3)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))(vitest@4.1.9)':
+    dependencies:
+      '@nx/devkit': 23.0.1(nx@23.0.1)
+      '@nx/js': 23.0.1(@babel/traverse@7.29.7)(nx@23.0.1)
+      '@phenomnomnominal/tsquery': 6.2.0(typescript@6.0.3)
+      semver: 7.8.5
+      tslib: 2.8.1
+    optionalDependencies:
+      '@nx/eslint': 23.0.1(@babel/traverse@7.29.7)(@nx/jest@23.0.1(@babel/traverse@7.29.7)(@types/node@22.20.0)(babel-plugin-macros@3.1.0)(nx@23.0.1)(typescript@6.0.3))(@zkochan/js-yaml@0.0.7)(eslint@10.6.0(jiti@2.7.0))(nx@23.0.1)
+      vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
+      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+    transitivePeerDependencies:
+      - '@babel/traverse'
+      - '@swc-node/register'
+      - '@swc/cli'
+      - '@swc/core'
+      - debug
+      - nx
+      - supports-color
+      - typescript
+      - verdaccio
 
   '@nx/workspace@23.0.1':
     dependencies:
@@ -5146,6 +5257,10 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@swc/helpers@0.5.23':
+    dependencies:
+      tslib: 2.8.1
+
   '@tybys/wasm-util@0.10.3':
     dependencies:
       tslib: 2.8.1
@@ -5202,6 +5317,10 @@ snapshots:
       '@types/istanbul-lib-report': 3.0.3
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/node@22.20.0':
+    dependencies:
+      undici-types: 6.21.0
 
   '@types/node@26.1.0':
     dependencies:
@@ -5396,7 +5515,7 @@ snapshots:
       obug: 2.1.3
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.9(@types/node@26.1.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
 
   '@vitest/expect@4.1.9':
     dependencies:
@@ -5407,13 +5526,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.9(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.9(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
+      vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
 
   '@vitest/pretty-format@4.1.9':
     dependencies:
@@ -5985,6 +6104,12 @@ snapshots:
       acorn-jsx: 5.3.2(acorn@8.17.0)
       eslint-visitor-keys: 5.0.1
 
+  espree@9.6.1:
+    dependencies:
+      acorn: 8.17.0
+      acorn-jsx: 5.3.2(acorn@8.17.0)
+      eslint-visitor-keys: 3.4.3
+
   esprima@4.0.1: {}
 
   esquery@1.7.0:
@@ -6034,9 +6159,9 @@ snapshots:
     dependencies:
       bser: 2.1.1
 
-  fdir@6.5.0(picomatch@4.0.4):
+  fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
-      picomatch: 4.0.4
+      picomatch: 4.0.5
 
   figures@3.2.0:
     dependencies:
@@ -6304,7 +6429,7 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-config@30.4.2(@types/node@26.1.0)(babel-plugin-macros@3.1.0):
+  jest-config@30.4.2(@types/node@22.20.0)(babel-plugin-macros@3.1.0):
     dependencies:
       '@babel/core': 7.29.7
       '@jest/get-type': 30.1.0
@@ -6330,7 +6455,7 @@ snapshots:
       slash: 3.0.0
       strip-json-comments: 3.1.1
     optionalDependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
@@ -6568,6 +6693,13 @@ snapshots:
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json5@2.2.3: {}
+
+  jsonc-eslint-parser@2.4.2:
+    dependencies:
+      acorn: 8.17.0
+      eslint-visitor-keys: 3.4.3
+      espree: 9.6.1
+      semver: 7.8.5
 
   jsonc-parser@3.3.1: {}
 
@@ -7257,8 +7389,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.4)
-      picomatch: 4.0.4
+      fdir: 6.5.0(picomatch@4.0.5)
+      picomatch: 4.0.5
 
   tinyrainbow@3.1.0: {}
 
@@ -7295,6 +7427,8 @@ snapshots:
   typescript@5.9.3: {}
 
   typescript@6.0.3: {}
+
+  undici-types@6.21.0: {}
 
   undici-types@8.3.0: {}
 
@@ -7358,7 +7492,7 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0):
+  vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.5
@@ -7366,17 +7500,17 @@ snapshots:
       rolldown: 1.1.4
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
       esbuild: 0.28.1
       fsevents: 2.3.3
       jiti: 2.7.0
       tsx: 4.23.0
       yaml: 2.9.0
 
-  vitest@4.1.9(@types/node@26.1.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)):
+  vitest@4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.9
-      '@vitest/mocker': 4.1.9(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.9(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0))
       '@vitest/pretty-format': 4.1.9
       '@vitest/runner': 4.1.9
       '@vitest/snapshot': 4.1.9
@@ -7393,10 +7527,10 @@ snapshots:
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vite: 8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
+      vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.0)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
       '@vitest/coverage-v8': 4.1.9(vitest@4.1.9)
     transitivePeerDependencies:
       - msw
