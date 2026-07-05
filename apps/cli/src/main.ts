@@ -1,9 +1,9 @@
 process.loadEnvFile()
 
 import { Command } from 'commander'
-import { createJsonlLogger } from '@plantbase/core'
+import { createJsonlLogger, createReadonlyPool } from '@plantbase/core'
 import { registerAskCommand } from './commands/ask.command'
-import { loadAgentConfigFromEnv } from './config/agent-config'
+import { loadAgentConfigFromEnv, loadReadonlyDatabaseUrlFromEnv } from './config/agent-config'
 import { startInteractiveLoop } from './interactive/interactive-loop'
 
 const program = new Command()
@@ -12,11 +12,12 @@ program.name('plantbase').description('Plantbase — AI agent a növény-kataló
 
 const agentConfig = loadAgentConfigFromEnv()
 const logger = createJsonlLogger()
+const runSqlPool = createReadonlyPool(loadReadonlyDatabaseUrlFromEnv())
 
-registerAskCommand(program, agentConfig, logger)
+registerAskCommand(program, agentConfig, logger, runSqlPool)
 
 if (process.argv.length <= 2) {
-  startInteractiveLoop(agentConfig, logger)
+  startInteractiveLoop(agentConfig, logger, runSqlPool)
 } else {
   program.parseAsync()
 }

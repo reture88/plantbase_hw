@@ -16,3 +16,13 @@ export function loadAgentConfigFromEnv(): AgentConfig {
 
   return { apiKey, model }
 }
+
+export function loadReadonlyDatabaseUrlFromEnv(): string {
+  const databaseUrlReadonly = process.env.DATABASE_URL_READONLY
+
+  if (!databaseUrlReadonly) {
+    throw new Error('Hiányzik a DATABASE_URL_READONLY környezeti változó (.env).')
+  }
+
+  return databaseUrlReadonly
+}

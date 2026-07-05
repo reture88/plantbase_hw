@@ -9,6 +9,8 @@ vi.mock('@plantbase/core', () => ({
 
 const { registerAskCommand } = await import('./ask.command')
 
+const fakePool = {} as import('pg').Pool
+
 describe('ask command', () => {
   it('should print the agent answer to the console', async () => {
     askAgentMock.mockResolvedValueOnce({
@@ -18,10 +20,12 @@ describe('ask command', () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     })
     const program = new Command()
-    registerAskCommand(program, { apiKey: 'test-key', model: 'claude-test' }, {
-      filePath: 'fake.jsonl',
-      append: vi.fn(),
-    })
+    registerAskCommand(
+      program,
+      { apiKey: 'test-key', model: 'claude-test' },
+      { filePath: 'fake.jsonl', append: vi.fn() },
+      fakePool,
+    )
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await program.parseAsync(['ask', 'szia'], { from: 'user' })
@@ -39,10 +43,12 @@ describe('ask command', () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     })
     const program = new Command()
-    registerAskCommand(program, { apiKey: 'test-key', model: 'claude-test' }, {
-      filePath: 'fake.jsonl',
-      append: vi.fn(),
-    })
+    registerAskCommand(
+      program,
+      { apiKey: 'test-key', model: 'claude-test' },
+      { filePath: 'fake.jsonl', append: vi.fn() },
+      fakePool,
+    )
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await program.parseAsync(['ask', 'szia', '--show-prompt'], { from: 'user' })

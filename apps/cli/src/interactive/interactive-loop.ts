@@ -1,8 +1,9 @@
 import { createInterface } from 'node:readline'
 import { askAgent, type JsonlLogger } from '@plantbase/core'
+import type { Pool } from 'pg'
 import type { AgentConfig } from '../config/agent-config'
 
-export function startInteractiveLoop(agentConfig: AgentConfig, logger: JsonlLogger): void {
+export function startInteractiveLoop(agentConfig: AgentConfig, logger: JsonlLogger, runSqlPool: Pool): void {
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -22,7 +23,7 @@ export function startInteractiveLoop(agentConfig: AgentConfig, logger: JsonlLogg
     rl.pause()
     void (async () => {
       try {
-        const result = await askAgent(trimmed, { ...agentConfig, logger })
+        const result = await askAgent(trimmed, { ...agentConfig, logger, runSqlPool })
         console.log(result.answer)
       } catch (error) {
         console.error(error instanceof Error ? error.message : 'Ismeretlen hiba történt.')
