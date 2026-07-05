@@ -3,6 +3,7 @@ import type { Pool } from 'pg'
 import { z } from 'zod'
 import type { JsonlLogger, ToolCallLogEntry } from '../logging/jsonl-logger'
 import { createListCategoriesHandler, LIST_CATEGORIES_TOOL_NAME, listCategoriesToolDefinition } from './list-categories-tool'
+import { classifyRequest, type RequestClassification } from './request-classifier'
 import { createRunSqlHandler, RUN_SQL_TOOL_NAME, runSqlToolDefinition } from './run-sql-tool'
 import { SQL_AGENT_SYSTEM_PROMPT } from './schema-context'
 import { SIMPLE_SYSTEM_PROMPT } from './simple-system-prompt'
@@ -33,6 +34,8 @@ export type AskAgentResult = {
   systemPrompt: string
   messages: Anthropic.MessageParam[]
   usage: Usage
+  /** Az előszűrés (`request-classifier`) szerint a felhasználó kért-e explicit fájl-exportot. */
+  wantsFileExport: boolean
 }
 
 function extractText(content: Anthropic.ContentBlock[]): string {
@@ -42,12 +45,16 @@ function extractText(content: Anthropic.ContentBlock[]): string {
     .join('\n')
 }
 
-function addUsage(total: Usage, response: Anthropic.Message): Usage {
+function addUsage(total: Usage, tokens: { inputTokens: number; outputTokens: number }): Usage {
   return {
-    inputTokens: total.inputTokens + response.usage.input_tokens,
-    outputTokens: total.outputTokens + response.usage.output_tokens,
-    totalTokens: total.totalTokens + response.usage.input_tokens + response.usage.output_tokens,
+    inputTokens: total.inputTokens + tokens.inputTokens,
+    outputTokens: total.outputTokens + tokens.outputTokens,
+    totalTokens: total.totalTokens + tokens.inputTokens + tokens.outputTokens,
   }
+}
+
+function addResponseUsage(total: Usage, response: Anthropic.Message): Usage {
+  return addUsage(total, { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens })
 }
 
 export async function askAgent(question: string, config: AskAgentConfig): Promise<AskAgentResult> {
@@ -60,11 +67,18 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
   const runSqlHandler = config.runSqlPool ? createRunSqlHandler(config.runSqlPool) : undefined
   const listCategoriesHandler = config.runSqlPool ? createListCategoriesHandler(config.runSqlPool) : undefined
 
+  // Előszűrés a fő loop előtt: dönti el, hogy a web_search tool egyáltalán
+  // felajánlásra kerüljön-e (csak növény-témájú kérdésnél), és hogy a
+  // felhasználó kért-e explicit fájl-exportot. Lásd docs/architektura.md.
+  const classification: RequestClassification = runSqlHandler
+    ? await classifyRequest(parsedQuestion, { apiKey: config.apiKey, model: config.model })
+    : { isPlantRelated: false, wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } }
+
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: parsedQuestion }]
   const toolCalls: ToolCallLogEntry[] = []
 
   let answer = ''
-  let usage: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+  let usage: Usage = addUsage({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }, classification.usage)
   let errorMessage: string | undefined
 
   try {
@@ -75,11 +89,17 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
         system: systemPrompt,
         messages,
         ...(runSqlHandler
-          ? { tools: [runSqlToolDefinition, listCategoriesToolDefinition, webSearchToolDefinition] }
+          ? {
+              tools: [
+                runSqlToolDefinition,
+                listCategoriesToolDefinition,
+                ...(classification.isPlantRelated ? [webSearchToolDefinition] : []),
+              ],
+            }
           : {}),
       })
 
-      usage = addUsage(usage, response)
+      usage = addResponseUsage(usage, response)
       messages.push({ role: 'assistant', content: response.content })
 
       // A web_search szerver-oldali tool a saját belső iterációs limitjét elérve
@@ -154,7 +174,7 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
       answer = 'Nem sikerült választ generálni a megengedett lépésszámon belül.'
     }
 
-    return { answer, systemPrompt, messages, usage }
+    return { answer, systemPrompt, messages, usage, wantsFileExport: classification.wantsFileExport }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : 'Ismeretlen hiba történt.'
     throw error
@@ -169,6 +189,7 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
       usage,
       durationMs: Date.now() - startedAt,
       error: errorMessage,
+      classification: { isPlantRelated: classification.isPlantRelated, wantsFileExport: classification.wantsFileExport },
     })
   }
 }

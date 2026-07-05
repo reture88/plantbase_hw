@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JsonlLogger } from '../logging/jsonl-logger'
 
 const createMock = vi.fn()
+const classifyRequestMock = vi.fn()
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: vi.fn().mockImplementation(function AnthropicMock() {
@@ -9,10 +10,20 @@ vi.mock('@anthropic-ai/sdk', () => ({
   }),
 }))
 
+vi.mock('./request-classifier', () => ({
+  classifyRequest: classifyRequestMock,
+}))
+
 const { askAgent } = await import('./ask-agent')
 
 beforeEach(() => {
   createMock.mockReset()
+  classifyRequestMock.mockReset()
+  classifyRequestMock.mockResolvedValue({
+    isPlantRelated: true,
+    wantsFileExport: false,
+    usage: { inputTokens: 0, outputTokens: 0 },
+  })
 })
 
 function createFakeLogger(): JsonlLogger & { entries: unknown[] } {
@@ -39,6 +50,7 @@ describe('askAgent', () => {
     expect(result.answer).toBe('Szia! Miben segíthetek?')
     expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
     expect(logger.entries).toHaveLength(1)
+    expect(classifyRequestMock).not.toHaveBeenCalled()
   })
 
   it('should reject an empty question before calling the Anthropic client', async () => {
@@ -92,11 +104,65 @@ describe('askAgent', () => {
     expect(queryMock).toHaveBeenCalledWith("SELECT name, stock FROM products WHERE name ILIKE '%aloe%' LIMIT 50")
     expect(result.answer).toBe('Van Aloe vera, 35 darab raktáron.')
     expect(result.usage).toEqual({ inputTokens: 35, outputTokens: 18, totalTokens: 53 })
+    expect(result.wantsFileExport).toBe(false)
     expect(logger.entries).toHaveLength(1)
     expect((logger.entries[0] as { toolCalls: unknown[] }).toolCalls).toHaveLength(1)
 
     const requestArgs = createMock.mock.calls[0][0] as { tools?: { name: string }[] }
     expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories', 'web_search'])
+  })
+
+  it('should not offer web_search when the classifier says the question is not plant-related', async () => {
+    classifyRequestMock.mockResolvedValueOnce({
+      isPlantRelated: false,
+      wantsFileExport: false,
+      usage: { inputTokens: 5, outputTokens: 3 },
+    })
+    const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
+    const logger = createFakeLogger()
+
+    createMock.mockResolvedValueOnce({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Ez nem kapcsolódik a növény-katalógushoz.' }],
+      usage: { input_tokens: 10, output_tokens: 6 },
+    })
+
+    const result = await askAgent('mi Franciaország fővárosa?', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+      logger,
+      runSqlPool: fakePool,
+    })
+
+    const requestArgs = createMock.mock.calls[0][0] as { tools?: { name: string }[] }
+    expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories'])
+    // A klasszifikáció token-felhasználása is beleszámít az összesítésbe.
+    expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 9, totalTokens: 24 })
+  })
+
+  it('should surface wantsFileExport from the classifier so the CLI can decide to save a document', async () => {
+    classifyRequestMock.mockResolvedValueOnce({
+      isPlantRelated: true,
+      wantsFileExport: true,
+      usage: { inputTokens: 0, outputTokens: 0 },
+    })
+    const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
+    const logger = createFakeLogger()
+
+    createMock.mockResolvedValueOnce({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Van kaktuszunk 3500 Ft-ért.' }],
+      usage: { input_tokens: 10, output_tokens: 6 },
+    })
+
+    const result = await askAgent('Van e kaktusz 5000Ft-ért? ha igen a listát mentsd ki fileba', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+      logger,
+      runSqlPool: fakePool,
+    })
+
+    expect(result.wantsFileExport).toBe(true)
   })
 
   it('should resend and continue when a server-side tool (web_search) pauses the turn', async () => {

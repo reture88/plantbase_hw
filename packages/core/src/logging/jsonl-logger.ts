@@ -20,6 +20,8 @@ export type InteractionLogEntry = {
   usage: { inputTokens: number; outputTokens: number; totalTokens: number }
   durationMs: number
   error?: string
+  /** Az előszűrés (request-classifier) eredménye — miért kapta/nem kapta meg a web_search-t, exportot kért-e. */
+  classification?: { isPlantRelated: boolean; wantsFileExport: boolean }
 }
 
 export type JsonlLogger = {
