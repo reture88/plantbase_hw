@@ -8,6 +8,7 @@ node_modules/
 dist/
 build/
 coverage/
+tmp/
 
 # Nx
 .nx/cache
@@ -20,9 +21,15 @@ prisma/*.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+/logs/
+
+# Generált árajánlat-dokumentumok (quote parancs)
+/quotes/
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+vitest.config.*.timestamp*

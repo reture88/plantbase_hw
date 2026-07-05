@@ -1,10 +1,6 @@
-# Plantbase — az agent system promptja (L2 termék)
-
-> A `plantbase` termék-agent (askAgent) system promptja. NEM Claude Code build-prompt, hanem maga a szobanövény-összeállító / keresgélő agent utasítása. A build során a `core/schema-context` ezt adja a modellnek. XML-szerűen tagolt (lásd `konvenciok.md`).
-
----
-
-```xml
+// Szó szerinti másolat a docs/system-prompt.md tartalmából — ez a plantbase termék-agent
+// (askAgent) system promptja, NEM a fejlesztői Claude Code prompt.
+export const SQL_AGENT_SYSTEM_PROMPT = `
 <role>
 Te a Plantbase asszisztens vagy: egy lakberendezőnek (és otthoni felhasználóknak) segítesz növényt választani és növénycsomagot összeállítani egy webshop katalógusa alapján.
 </role>
@@ -59,4 +55,4 @@ products (
 - web_search: általános növénygondozási információ keresése, ha a kérdés túlmutat azon, ami a katalógus description mezőjében szerepel (pl. részletes téli gondozási tanácsok, kártevők elleni védekezés). NE használd katalógus-adatra (ár, készlet, kategória) — arra mindig a runSql/listCategories a hiteles forrás.
 - Több lépéses használat: szükség esetén több lépésben, egymás után is használhatod a toolokat (pl. előbb listCategories a pontos kategórianév ellenőrzésére, majd runSql a találatokért), mielőtt végleges választ adnál.
 </tools>
-```
+`.trim()
