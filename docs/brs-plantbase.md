@@ -52,6 +52,8 @@ Kívül (későbbi órák):
 - Web és voice felület.
 - Több felhasználó, jogosultságkezelés.
 
+> **Scope-kiegészítés:** az agent egy Anthropic hivatalos szerver-oldali toolt (`web_search`) is használhat általános növénygondozási kérdésekre (pl. téli gondozás, kártevők), amik nincsenek a katalógus `description` mezőjében. Ez NEM bővíti a katalógus-adat hatókörét (ár/készlet/kategória továbbra is kizárólag `runSql`/`listCategories`-ből jön) — csak a válasz szövegének kiegészítése általános, nem üzleti-adat jellegű tudással.
+
 ## 4. Követelmények
 
 ### Funkcionális (FR)
@@ -61,6 +63,7 @@ Kívül (későbbi órák):
 - **FR3, Válasz:** a lekérdezés eredményéből természetes nyelvű választ ad.
 - **FR4, Naplózás:** minden interakciót logol (`logs/<timestamp>.jsonl`): system prompt, üzenetek, generált SQL, eredmény, válasz, token-felhasználás.
 - **FR5, Átláthatóság:** `--show-prompt` mód, amely kiírja a teljes üzenet-tömböt.
+- **FR6, Árajánlat-export:** `plantbase quote "<igény>"` parancs — az összeállított növény-ajánlás alapján formázott, tételes Excel (.xlsx) árajánlatot generál (Anthropic Agent Skill + code execution) és helyben elmenti.
 
 ### Nem-funkcionális (NFR)
 

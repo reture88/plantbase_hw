@@ -23,6 +23,9 @@ npm-debug.log*
 pnpm-debug.log*
 /logs/
 
+# Generált árajánlat-dokumentumok (quote parancs)
+/quotes/
+
 # OS / editor
 .DS_Store
 Thumbs.db

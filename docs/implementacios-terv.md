@@ -183,6 +183,12 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 ### Kiegészítések a B3 után
 
 - **`listCategories` tool.** A `runSql` mellett egy második, kódolt (nem a modell által generált SQL-t futtató) tool: `SELECT DISTINCT category FROM products ORDER BY category`, ugyanazon a read-only poolon. Bekötve az `askAgent` tool-use loopjába — a modell akkor hívja, ha bizonytalan a pontos kategórianévben, vagy a felhasználó a választható kategóriákra kérdez. A `docs/system-prompt.md` és a `packages/core/src/agent/schema-context.ts` `<tools>` szekciója is frissült ennek megfelelően.
+- **7 önleíró szabály a system promptban** (`packages/core/src/agent/schema-context.ts` + `docs/system-prompt.md`): üres találati halmaz kezelése, írási kísérlet elutasításának megfogalmazása, több lépéses tool-használat, HUF-formázás, latin/köznapi név kettős keresése, `rating` alapú preferálás, hatókörön kívüli (belső üzleti adat) kérdések kezelése.
+- **Piaci kiegészítők (nem saját fejlesztés): `web_search` + Anthropic Agent Skills.** Két, a user által kifejezetten kért kiegészítés:
+  - **`web_search` szerver-oldali tool** (`packages/core/src/agent/web-search-tool.ts`, típus `web_search_20260209`, nem beta) bekötve a fő tool-use loopba (`ask-agent.ts`) a `runSql`/`listCategories` mellé, kizárólag általános növénygondozási tudáshoz (a katalógus-adat forrása változatlanul a DB). A hurok kezeli a szerver-oldali tool saját `pause_turn` iterációs-limitjét is (egyszerű újraküldéssel folytatja).
+  - **`plantbase quote "<igény>"` parancs** (`apps/cli/src/commands/quote.command.ts` + `packages/core/src/agent/quote-document.ts`): előbb lefuttatja a meglévő `askAgent`-et (SQL-agent) a növény-ajánlásért, majd egy KÜLÖN, beta Messages API-hívással (`client.beta.messages.create`, `container.skills: [{skill_id: "xlsx"}]`, `code_execution_20260521` tool) formázott Excel árajánlatot generáltat, amit a Files API-n (`client.beta.files.download`) keresztül tölt le és ment a `quotes/` mappába (gitignore-olva, mint a `logs/`).
+  - Mindkettő tesztelve mock Anthropic-kliensekkel (`ask-agent.spec.ts`, `quote-document.spec.ts`, `quote.command.spec.ts`); a tényleges élő futtatást (valós API-hívás, fájlgenerálás) a user teszteli.
+  - Dokumentáció: `docs/brs-plantbase.md` (FR6 + hatókör-kiegészítés a `web_search`-re), `docs/architektura.md` (8. pont: két külön LLM-hívási útvonal), `docs/system-prompt.md`/`schema-context.ts` (`<tools>` + `<behavior>` "Hatókör" szabály pontosítása).
 
 ### Végrehajtás közben felmerült eltérések a tervhez képest
 

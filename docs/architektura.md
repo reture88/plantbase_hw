@@ -26,5 +26,6 @@ Később (NEM most): apps/api (4. óra), apps/web (5. óra)
 5. **Lokális DB.** docker-compose Postgres, OrbStack futtatja. Helyben dolgozunk, nincs felhő-DB.
 6. **Prisma külön Nx lib.** A Prisma (séma, migráció, kliens, seed) a `packages/db` libben él, NEM a repo gyökerében: a séma az Nx graph része, a core és a seed onnan importál.
 7. **Library-doksi munka előtt.** Új vagy ritkán használt API-nál (pl. Prisma) ELŐBB beolvassuk a doksit Context7-tel, csak utána kódolunk, mert így kevesebb a hiba a tesztek alatt.
+8. **Piaci (Anthropic-hivatalos) kiegészítő képességek, két külön útvonalon.** A fő SQL-agent tool-use loop (`runSql`, `listCategories`) mellett egy Anthropic szerver-oldali tool (`web_search`) is elérhető általános növénygondozási tudáshoz — ez nem éri el az adatbázist, a katalógus-adat (ár/készlet/kategória) forrása változatlanul kizárólag a `runSql`/`listCategories`. Az árajánlat-dokumentum generálás (`plantbase quote`) egy MÁSODIK, önálló LLM-hívási útvonalon fut (Anthropic Agent Skills: `xlsx` + `code_execution`, beta Messages API `client.beta.messages`) — szándékosan elkülönítve a fő tool-use looptól, mert eltérő a tool-típus (szerver-oldali konténer + fájl-generálás/letöltés) és nem kell minden `ask` hívásnál aktívnak lennie.
 
 Konvenciók: `konvenciok.md`. Git/hook/automatizmus: `dev-workflow.md`.
