@@ -92,6 +92,47 @@ describe('askAgent', () => {
     expect((logger.entries[0] as { toolCalls: unknown[] }).toolCalls).toHaveLength(1)
   })
 
+  it('should run the listCategories tool and feed the result back for a final answer', async () => {
+    const queryMock = vi.fn().mockResolvedValue({
+      rows: [{ category: 'kaktusz' }, { category: 'pozsgás' }, { category: 'szobanövény' }],
+      rowCount: 3,
+    })
+    const fakePool = { query: queryMock } as unknown as import('pg').Pool
+    const logger = createFakeLogger()
+
+    createMock
+      .mockResolvedValueOnce({
+        stop_reason: 'tool_use',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tool_1',
+            name: 'listCategories',
+            input: {},
+          },
+        ],
+        usage: { input_tokens: 18, output_tokens: 9 },
+      })
+      .mockResolvedValueOnce({
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'A következő kategóriák érhetők el: kaktusz, pozsgás, szobanövény.' }],
+        usage: { input_tokens: 12, output_tokens: 6 },
+      })
+
+    const result = await askAgent('milyen kategóriák vannak?', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+      logger,
+      runSqlPool: fakePool,
+    })
+
+    expect(queryMock).toHaveBeenCalledWith('SELECT DISTINCT category FROM products ORDER BY category')
+    expect(result.answer).toBe('A következő kategóriák érhetők el: kaktusz, pozsgás, szobanövény.')
+    const toolCalls = (logger.entries[0] as { toolCalls: { tool: string; resultRowCount?: number }[] }).toolCalls
+    expect(toolCalls[0].tool).toBe('listCategories')
+    expect(toolCalls[0].resultRowCount).toBe(3)
+  })
+
   it('should reject a write attempt from the model and report it as a tool error, not a crash', async () => {
     const queryMock = vi.fn()
     const fakePool = { query: queryMock } as unknown as import('pg').Pool

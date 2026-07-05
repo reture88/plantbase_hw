@@ -2,7 +2,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { Pool } from 'pg'
 import { z } from 'zod'
 import type { JsonlLogger, ToolCallLogEntry } from '../logging/jsonl-logger'
-import { createRunSqlHandler, runSqlToolDefinition } from './run-sql-tool'
+import { createListCategoriesHandler, LIST_CATEGORIES_TOOL_NAME, listCategoriesToolDefinition } from './list-categories-tool'
+import { createRunSqlHandler, RUN_SQL_TOOL_NAME, runSqlToolDefinition } from './run-sql-tool'
 import { SQL_AGENT_SYSTEM_PROMPT } from './schema-context'
 import { SIMPLE_SYSTEM_PROMPT } from './simple-system-prompt'
 
@@ -56,6 +57,7 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
   const useSqlAgent = Boolean(config.runSqlPool)
   const systemPrompt = useSqlAgent ? SQL_AGENT_SYSTEM_PROMPT : SIMPLE_SYSTEM_PROMPT
   const runSqlHandler = config.runSqlPool ? createRunSqlHandler(config.runSqlPool) : undefined
+  const listCategoriesHandler = config.runSqlPool ? createListCategoriesHandler(config.runSqlPool) : undefined
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: parsedQuestion }]
   const toolCalls: ToolCallLogEntry[] = []
@@ -71,7 +73,7 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages,
-        ...(runSqlHandler ? { tools: [runSqlToolDefinition] } : {}),
+        ...(runSqlHandler ? { tools: [runSqlToolDefinition, listCategoriesToolDefinition] } : {}),
       })
 
       usage = addUsage(usage, response)
@@ -89,17 +91,34 @@ export async function askAgent(question: string, config: AskAgentConfig): Promis
 
         const toolCallStartedAt = Date.now()
         try {
-          const result = await runSqlHandler(block.input)
+          let resultContent: unknown
+          let resultRowCount: number
+          let resultSample: unknown
+
+          if (block.name === RUN_SQL_TOOL_NAME) {
+            const result = await runSqlHandler(block.input)
+            resultContent = result.rows
+            resultRowCount = result.rowCount
+            resultSample = result.rows.slice(0, TOOL_RESULT_SAMPLE_SIZE)
+          } else if (block.name === LIST_CATEGORIES_TOOL_NAME && listCategoriesHandler) {
+            const result = await listCategoriesHandler()
+            resultContent = result.categories
+            resultRowCount = result.categories.length
+            resultSample = result.categories
+          } else {
+            throw new Error(`Ismeretlen vagy nem elérhető tool: ${block.name}`)
+          }
+
           toolResultContent.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: JSON.stringify(result.rows),
+            content: JSON.stringify(resultContent),
           })
           toolCalls.push({
             tool: block.name,
             input: block.input,
-            resultRowCount: result.rowCount,
-            resultSample: result.rows.slice(0, TOOL_RESULT_SAMPLE_SIZE),
+            resultRowCount,
+            resultSample,
             durationMs: Date.now() - toolCallStartedAt,
           })
         } catch (toolError) {

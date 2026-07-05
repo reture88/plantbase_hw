@@ -180,6 +180,10 @@ Minden A/B lépés után **megállunk és a user teszteli** manuálisan (parancs
 - **A) teljes egészében kész** (A0–A6), a user kérésére megszakítás nélkül, egyben.
 - **B1, B2, B3 mind kész** — mindegyik után külön-külön megállt a fejlesztés kézi tesztelésre, ahogy a user kérte.
 
+### Kiegészítések a B3 után
+
+- **`listCategories` tool.** A `runSql` mellett egy második, kódolt (nem a modell által generált SQL-t futtató) tool: `SELECT DISTINCT category FROM products ORDER BY category`, ugyanazon a read-only poolon. Bekötve az `askAgent` tool-use loopjába — a modell akkor hívja, ha bizonytalan a pontos kategórianévben, vagy a felhasználó a választható kategóriákra kérdez. A `docs/system-prompt.md` és a `packages/core/src/agent/schema-context.ts` `<tools>` szekciója is frissült ennek megfelelően.
+
 ### Végrehajtás közben felmerült eltérések a tervhez képest
 
 - **Prisma verzió: 6.19.3, nem a legfrissebb 7.x.** Prisma 7 két, egymást követő, gyakorlatban tesztelt, áthidalhatatlan törést hozott a változatlanul hagyandó `seed.ts`-hez képest: (1) az új alapértelmezett `prisma-client` generátor kötelező egyedi `output` útvonalat követel, ami megváltoztatná a `seed.ts` `import ... from '@prisma/client'` sorát; (2) a `schema.prisma` `datasource` blokkjában a `url` mező HARD hibát dob (`P1012`), a kapcsolati string kizárólag a `PrismaClient` konstruktorának explicit átadható paraméterén keresztül állítható be — ez a `seed.ts` `new PrismaClient()` (paraméter nélküli) hívását törné el. Mivel a `seed.ts`-t nem módosítjuk, a Prisma 6 utolsó stabil kiadására (6.19.3) álltunk, ami a klasszikus, env-alapú `url`-t és a paraméter nélküli klienskonstruktort is támogatja.

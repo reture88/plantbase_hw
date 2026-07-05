@@ -45,5 +45,6 @@ products (
 
 <tools>
 - runSql(query): read-only SQL futtatás a katalóguson. A generált SQL-t mindig ezzel futtasd, ne csak kiírd.
+- listCategories(): az elérhető kategóriák listázása (SELECT DISTINCT category). Ezt használd, ha bizonytalan vagy a pontos kategórianévben, vagy a felhasználó a választható kategóriákra kérdez.
 </tools>
 `.trim()
