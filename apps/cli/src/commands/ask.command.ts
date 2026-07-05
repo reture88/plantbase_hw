@@ -2,6 +2,7 @@ import type { Command } from 'commander'
 import { askAgent, type JsonlLogger } from '@plantbase/core'
 import type { Pool } from 'pg'
 import type { AgentConfig } from '../config/agent-config'
+import { saveQuoteIfRequested } from '../export/quote-export'
 
 export function registerAskCommand(
   program: Command,
@@ -26,5 +27,7 @@ export function registerAskCommand(
       }
 
       console.log(result.answer)
+
+      await saveQuoteIfRequested(result.answer, result.wantsFileExport, agentConfig)
     })
 }
