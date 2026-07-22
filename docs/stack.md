@@ -3,8 +3,11 @@
 Elv: iparági best practice, legfrissebb STABIL verzió (se cutting-edge, se elavult).
 
 - Nyelv / monorepo: TypeScript (strict), Nx, pnpm, Node LTS
-- DB: PostgreSQL lokálisan docker-compose-ban (OrbStack futtatja), Prisma (ORM: séma, migráció, seed, typed query). Helyben dolgozunk, nincs felhő-DB.
+- DB: PostgreSQL lokálisan docker-compose-ban (`pgvector/pgvector:0.8.5-pg18` image — pgvector extension a RAG-tudásbázishoz), Prisma (ORM: séma, migráció, seed, typed query). Helyben dolgozunk, nincs felhő-DB.
 - Agent: Vercel AI SDK (`ai` + `@ai-sdk/anthropic`) — `generateText` + explicit tools/system prompt a kódban, agent-framework nélkül. Zod (validáció)
+- RAG-tudásbázis: pgvector (`vector(1536)`, HNSW-index) + `@ai-sdk/openai` (`text-embedding-3-small` embedding — az Anthropic nem kínál embedding-modellt) + Claude Haiku (HyDE, rerank, szemantikus chunk-elemzés, grounded válaszadás)
+- API: Fastify + `@fastify/cors`
+- Web frontend: React 19 + Vite
 - CLI: commander + node:readline
 - Tooling: Vitest, ESLint + Prettier, tsx
 - Eszköz: Zed, gh CLI
