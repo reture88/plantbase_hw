@@ -8,17 +8,18 @@ export type ChatMessage = {
   sources?: { title: string; source: string }[]
 }
 
-export type ChatReply = {
-  answer: string
+type ChatDone = {
   quoteUrl?: string
   grounded?: boolean
   sources?: { title: string; source: string }[]
+  /** Elutasításnál a textStream üres — ez az egyetlen hely, ahonnan a végleges szöveg jön. */
+  answer?: string
 }
 
 type ChatPanelProps = {
   placeholder: string
   emptyStateText: string
-  onSend: (question: string) => Promise<ChatReply>
+  onSend: (question: string, onDelta: (text: string) => void) => Promise<ChatDone>
 }
 
 export function ChatPanel({ placeholder, emptyStateText, onSend }: ChatPanelProps) {
@@ -27,24 +28,43 @@ export function ChatPanel({ placeholder, emptyStateText, onSend }: ChatPanelProp
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  function appendDeltaToLastMessage(delta: string) {
+    setMessages((prev) => {
+      const next = [...prev]
+      const last = next[next.length - 1]
+      next[next.length - 1] = { ...last, text: last.text + delta }
+      return next
+    })
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const question = input.trim()
     if (!question || isLoading) return
 
-    setMessages((prev) => [...prev, { role: 'user', text: question }])
+    setMessages((prev) => [...prev, { role: 'user', text: question }, { role: 'assistant', text: '' }])
     setInput('')
     setIsLoading(true)
     setError(null)
 
     try {
-      const reply = await onSend(question)
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: reply.answer, quoteUrl: reply.quoteUrl, grounded: reply.grounded, sources: reply.sources },
-      ])
+      const done = await onSend(question, appendDeltaToLastMessage)
+      setMessages((prev) => {
+        const next = [...prev]
+        const last = next[next.length - 1]
+        next[next.length - 1] = {
+          ...last,
+          // Elutasításnál sosem jött delta — a `done.answer` adja az egyetlen szöveget.
+          text: last.text || done.answer || '',
+          quoteUrl: done.quoteUrl,
+          grounded: done.grounded,
+          sources: done.sources,
+        }
+        return next
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ismeretlen hiba történt.')
+      setMessages((prev) => prev.slice(0, -1))
     } finally {
       setIsLoading(false)
     }
@@ -57,7 +77,11 @@ export function ChatPanel({ placeholder, emptyStateText, onSend }: ChatPanelProp
         {messages.map((message, index) => (
           <div key={index} className={`chat-bubble chat-bubble--${message.role}`}>
             {message.role === 'assistant' && message.grounded === false && <span className="chat-refusal-badge">nincs a tudásbázisban</span>}
-            <p>{message.text}</p>
+            {message.role === 'assistant' && message.text === '' && isLoading && index === messages.length - 1 ? (
+              <p className="chat-bubble--pending">…</p>
+            ) : (
+              <p>{message.text}</p>
+            )}
             {message.quoteUrl && (
               <a className="chat-quote-link" href={message.quoteUrl} download>
                 📄 Excel árajánlat letöltése
@@ -76,7 +100,6 @@ export function ChatPanel({ placeholder, emptyStateText, onSend }: ChatPanelProp
             )}
           </div>
         ))}
-        {isLoading && <div className="chat-bubble chat-bubble--assistant chat-bubble--pending">…</div>}
         {error && <div className="chat-error">Hiba: {error}</div>}
       </div>
 

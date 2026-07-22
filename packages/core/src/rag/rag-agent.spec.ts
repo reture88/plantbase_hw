@@ -1,10 +1,11 @@
-import { MockEmbeddingModelV4, MockLanguageModelV4 } from 'ai/test'
+import { MockEmbeddingModelV4, MockLanguageModelV4, simulateReadableStream } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RagJsonlLogger } from '../logging/rag-jsonl-logger'
 import type { RetrievedChunk } from './types'
 
 const doGenerateMock = vi.fn()
-const mockLanguageModel = new MockLanguageModelV4({ doGenerate: doGenerateMock })
+const doStreamMock = vi.fn()
+const mockLanguageModel = new MockLanguageModelV4({ doGenerate: doGenerateMock, doStream: doStreamMock })
 const doEmbedMock = vi.fn()
 const mockEmbeddingModel = new MockEmbeddingModelV4({ maxEmbeddingsPerCall: 10, doEmbed: doEmbedMock })
 const searchSimilarChunksMock = vi.fn()
@@ -23,8 +24,9 @@ vi.mock('./knowledge-repository', () => ({
   searchSimilarChunks: searchSimilarChunksMock,
 }))
 
-const { askRag } = await import('./rag-agent')
+const { askRag, streamAskRag } = await import('./rag-agent')
 
+// HyDE és rerank: generateText/generateObject → doGenerate.
 function textResponse(text: string) {
   return {
     content: [{ type: 'text' as const, text }],
@@ -36,6 +38,25 @@ function textResponse(text: string) {
 
 function objectResponse(json: unknown) {
   return textResponse(JSON.stringify(json))
+}
+
+// Grounded válaszadás: streamText → doStream.
+function textStreamResponse(text: string) {
+  return {
+    stream: simulateReadableStream({
+      chunks: [
+        { type: 'stream-start' as const, warnings: [] },
+        { type: 'text-start' as const, id: '1' },
+        { type: 'text-delta' as const, id: '1', delta: text },
+        { type: 'text-end' as const, id: '1' },
+        {
+          type: 'finish' as const,
+          finishReason: { unified: 'stop' as const, raw: undefined },
+          usage: { inputTokens: { total: 40, noCache: 40, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 20, text: 20, reasoning: undefined } },
+        },
+      ],
+    }),
+  }
 }
 
 function candidate(id: number, content: string, source = 'https://example.com/cikk'): RetrievedChunk {
@@ -51,6 +72,7 @@ const config = { anthropicApiKey: 'test-anthropic', anthropicModel: 'claude-test
 
 beforeEach(() => {
   doGenerateMock.mockReset()
+  doStreamMock.mockReset()
   doEmbedMock.mockReset()
   searchSimilarChunksMock.mockReset()
   doEmbedMock.mockResolvedValue({ embeddings: [[0.1, 0.2]] })
@@ -62,7 +84,7 @@ describe('askRag', () => {
     doGenerateMock
       .mockResolvedValueOnce(textResponse('Az aloe vera ritkán igényel öntözést.')) // HyDE
       .mockResolvedValueOnce(objectResponse({ rankedChunkIds: [1, 2] })) // rerank
-      .mockResolvedValueOnce(textResponse('Az aloe vera-t ritkán kell öntözni.')) // grounded answer
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Az aloe vera-t ritkán kell öntözni.')) // grounded answer
 
     const logger = fakeLogger()
     const result = await askRag('Milyen gyakran öntözzem az aloe verát?', { ...config, logger })
@@ -85,6 +107,7 @@ describe('askRag', () => {
     expect(result.grounded).toBe(false)
     expect(result.sources).toEqual([])
     expect(doGenerateMock).toHaveBeenCalledTimes(1)
+    expect(doStreamMock).not.toHaveBeenCalled()
   })
 
   it('refuses when the grounded model explicitly signals it cannot answer from the context', async () => {
@@ -92,12 +115,60 @@ describe('askRag', () => {
     doGenerateMock
       .mockResolvedValueOnce(textResponse('hipotetikus válasz'))
       .mockResolvedValueOnce(objectResponse({ rankedChunkIds: [1] }))
-      .mockResolvedValueOnce(textResponse('NINCS_ELEG_INFORMACIO'))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('NINCS_ELEG_INFORMACIO'))
 
     const result = await askRag('Mennyi a föld átlagos súlya egy cserépben grammban?', config)
 
     expect(result.grounded).toBe(false)
     expect(result.sources).toEqual([])
     expect(result.answer).toContain('nem tartalmaz elég információt')
+  })
+})
+
+describe('streamAskRag', () => {
+  it('streams the grounded answer text live once it is safely past the refusal marker', async () => {
+    searchSimilarChunksMock.mockResolvedValueOnce([candidate(1, 'aloe vera öntözés')])
+    doGenerateMock.mockResolvedValueOnce(textResponse('hipotetikus válasz')).mockResolvedValueOnce(objectResponse({ rankedChunkIds: [1] }))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Az aloe vera-t ritkán kell öntözni.'))
+    const logger = fakeLogger()
+
+    const stream = await streamAskRag('Milyen gyakran öntözzem az aloe verát?', { ...config, logger })
+    const chunks: string[] = []
+    for await (const chunk of stream.textStream) chunks.push(chunk)
+    const result = await stream.result
+
+    expect(chunks.join('')).toBe('Az aloe vera-t ritkán kell öntözni.')
+    expect(result.grounded).toBe(true)
+    expect(result.answer).toBe('Az aloe vera-t ritkán kell öntözni.')
+    expect(logger.entries).toHaveLength(1)
+  })
+
+  it('yields no text at all when the model signals a refusal, so the raw marker never reaches the client', async () => {
+    searchSimilarChunksMock.mockResolvedValueOnce([candidate(1, 'irreleváns tartalom')])
+    doGenerateMock.mockResolvedValueOnce(textResponse('hipotetikus válasz')).mockResolvedValueOnce(objectResponse({ rankedChunkIds: [1] }))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('NINCS_ELEG_INFORMACIO'))
+
+    const stream = await streamAskRag('Mennyi a föld átlagos súlya egy cserépben grammban?', config)
+    const chunks: string[] = []
+    for await (const chunk of stream.textStream) chunks.push(chunk)
+    const result = await stream.result
+
+    expect(chunks).toEqual([])
+    expect(result.grounded).toBe(false)
+    expect(result.answer).toContain('nem tartalmaz elég információt')
+  })
+
+  it('yields an immediately-empty stream when nothing is retrieved, without calling the answer model', async () => {
+    searchSimilarChunksMock.mockResolvedValueOnce([])
+    doGenerateMock.mockResolvedValueOnce(textResponse('hipotetikus válasz'))
+
+    const stream = await streamAskRag('Van-e a boltban repülő növény?', config)
+    const chunks: string[] = []
+    for await (const chunk of stream.textStream) chunks.push(chunk)
+    const result = await stream.result
+
+    expect(chunks).toEqual([])
+    expect(result.grounded).toBe(false)
+    expect(doStreamMock).not.toHaveBeenCalled()
   })
 })

@@ -1,8 +1,9 @@
-import { askAgent, saveGeneratedQuote, type JsonlLogger } from '@plantbase/core'
+import { saveGeneratedQuote, streamAskAgent, type JsonlLogger } from '@plantbase/core'
 import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import { z } from 'zod'
 import type { ApiEnv } from '../config/env'
+import { endSse, startSse } from '../sse'
 
 const AskRequestSchema = z.object({ question: z.string().min(1) })
 
@@ -14,12 +15,26 @@ export function registerAskRoute(app: FastifyInstance, env: ApiEnv, logger: Json
     }
 
     const agentConfig = { apiKey: env.anthropicApiKey, model: env.anthropicModel }
-    const result = await askAgent(parsed.data.question, { ...agentConfig, logger, runSqlPool })
-    const savedQuote = await saveGeneratedQuote(result.answer, result.wantsFileExport, agentConfig)
 
-    return reply.send({
-      answer: result.answer,
-      quoteUrl: savedQuote ? `/api/quotes/${encodeURIComponent(savedQuote.filename)}` : undefined,
-    })
+    let stream: Awaited<ReturnType<typeof streamAskAgent>>
+    try {
+      stream = await streamAskAgent(parsed.data.question, { ...agentConfig, logger, runSqlPool })
+    } catch (error) {
+      return reply.status(500).send({ error: error instanceof Error ? error.message : 'Ismeretlen hiba történt.' })
+    }
+
+    const send = startSse(reply)
+    try {
+      for await (const delta of stream.textStream) {
+        send({ type: 'text-delta', text: delta })
+      }
+      const result = await stream.result
+      const savedQuote = await saveGeneratedQuote(result.answer, result.wantsFileExport, agentConfig)
+      send({ type: 'done', quoteUrl: savedQuote ? `/api/quotes/${encodeURIComponent(savedQuote.filename)}` : undefined })
+    } catch (error) {
+      send({ type: 'error', message: error instanceof Error ? error.message : 'Ismeretlen hiba történt.' })
+    } finally {
+      endSse(reply)
+    }
   })
 }

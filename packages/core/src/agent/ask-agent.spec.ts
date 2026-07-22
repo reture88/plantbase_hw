@@ -1,9 +1,9 @@
-import { MockLanguageModelV4 } from 'ai/test'
+import { MockLanguageModelV4, simulateReadableStream } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JsonlLogger } from '../logging/jsonl-logger'
 
-const doGenerateMock = vi.fn()
-const mockModel = new MockLanguageModelV4({ doGenerate: doGenerateMock })
+const doStreamMock = vi.fn()
+const mockModel = new MockLanguageModelV4({ doStream: doStreamMock })
 const classifyRequestMock = vi.fn()
 
 vi.mock('@ai-sdk/anthropic', async (importOriginal) => {
@@ -18,10 +18,10 @@ vi.mock('./request-classifier', () => ({
   classifyRequest: classifyRequestMock,
 }))
 
-const { askAgent } = await import('./ask-agent')
+const { askAgent, streamAskAgent } = await import('./ask-agent')
 
 beforeEach(() => {
-  doGenerateMock.mockReset()
+  doStreamMock.mockReset()
   classifyRequestMock.mockReset()
   classifyRequestMock.mockResolvedValue({
     isPlantRelated: true,
@@ -41,39 +41,42 @@ function createFakeLogger(): JsonlLogger & { entries: unknown[] } {
   }
 }
 
-function textResponse(text: string, inputTokens: number, outputTokens: number) {
+function usagePart(inputTokens: number, outputTokens: number) {
   return {
-    content: [{ type: 'text' as const, text }],
-    finishReason: { unified: 'stop' as const, raw: undefined },
-    usage: {
-      inputTokens: { total: inputTokens, noCache: inputTokens, cacheRead: undefined, cacheWrite: undefined },
-      outputTokens: { total: outputTokens, text: outputTokens, reasoning: undefined },
-    },
-    warnings: [],
+    inputTokens: { total: inputTokens, noCache: inputTokens, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: outputTokens, text: outputTokens, reasoning: undefined },
   }
 }
 
-function toolCallResponse(
-  toolCallId: string,
-  toolName: string,
-  input: unknown,
-  inputTokens: number,
-  outputTokens: number,
-) {
+function textStreamResponse(text: string, inputTokens: number, outputTokens: number) {
   return {
-    content: [{ type: 'tool-call' as const, toolCallId, toolName, input: JSON.stringify(input) }],
-    finishReason: { unified: 'tool-calls' as const, raw: undefined },
-    usage: {
-      inputTokens: { total: inputTokens, noCache: inputTokens, cacheRead: undefined, cacheWrite: undefined },
-      outputTokens: { total: outputTokens, text: outputTokens, reasoning: undefined },
-    },
-    warnings: [],
+    stream: simulateReadableStream({
+      chunks: [
+        { type: 'stream-start' as const, warnings: [] },
+        { type: 'text-start' as const, id: '1' },
+        { type: 'text-delta' as const, id: '1', delta: text },
+        { type: 'text-end' as const, id: '1' },
+        { type: 'finish' as const, finishReason: { unified: 'stop' as const, raw: undefined }, usage: usagePart(inputTokens, outputTokens) },
+      ],
+    }),
+  }
+}
+
+function toolCallStreamResponse(toolCallId: string, toolName: string, input: unknown, inputTokens: number, outputTokens: number) {
+  return {
+    stream: simulateReadableStream({
+      chunks: [
+        { type: 'stream-start' as const, warnings: [] },
+        { type: 'tool-call' as const, toolCallId, toolName, input: JSON.stringify(input) },
+        { type: 'finish' as const, finishReason: { unified: 'tool-calls' as const, raw: undefined }, usage: usagePart(inputTokens, outputTokens) },
+      ],
+    }),
   }
 }
 
 describe('askAgent', () => {
   it('should return the answer text and token usage from the model response', async () => {
-    doGenerateMock.mockResolvedValueOnce(textResponse('Szia! Miben segíthetek?', 10, 5))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Szia! Miben segíthetek?', 10, 5))
     const logger = createFakeLogger()
 
     const result = await askAgent('szia', { apiKey: 'test-key', model: 'claude-test', logger })
@@ -89,7 +92,7 @@ describe('askAgent', () => {
   })
 
   it('should log the error and rethrow when the model call fails', async () => {
-    doGenerateMock.mockRejectedValueOnce(new Error('API kulcs érvénytelen'))
+    doStreamMock.mockRejectedValueOnce(new Error('API kulcs érvénytelen'))
     const logger = createFakeLogger()
 
     await expect(askAgent('szia', { apiKey: 'bad-key', model: 'claude-test', logger })).rejects.toThrow(
@@ -106,11 +109,11 @@ describe('askAgent', () => {
     const fakePool = { query: queryMock } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock
+    doStreamMock
       .mockResolvedValueOnce(
-        toolCallResponse('call_1', 'runSql', { query: "SELECT name, stock FROM products WHERE name ILIKE '%aloe%'" }, 20, 10),
+        toolCallStreamResponse('call_1', 'runSql', { query: "SELECT name, stock FROM products WHERE name ILIKE '%aloe%'" }, 20, 10),
       )
-      .mockResolvedValueOnce(textResponse('Van Aloe vera, 35 darab raktáron.', 15, 8))
+      .mockResolvedValueOnce(textStreamResponse('Van Aloe vera, 35 darab raktáron.', 15, 8))
 
     const result = await askAgent('van aloe vera raktáron?', {
       apiKey: 'test-key',
@@ -126,7 +129,7 @@ describe('askAgent', () => {
     expect(logger.entries).toHaveLength(1)
     expect((logger.entries[0] as { toolCalls: unknown[] }).toolCalls).toHaveLength(1)
 
-    const requestArgs = doGenerateMock.mock.calls[0][0] as { tools?: { name: string }[] }
+    const requestArgs = doStreamMock.mock.calls[0][0] as { tools?: { name: string }[] }
     expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories', 'web_search'])
   })
 
@@ -139,7 +142,7 @@ describe('askAgent', () => {
     const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock.mockResolvedValueOnce(textResponse('Ez nem kapcsolódik a növény-katalógushoz.', 10, 6))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Ez nem kapcsolódik a növény-katalógushoz.', 10, 6))
 
     const result = await askAgent('mi Franciaország fővárosa?', {
       apiKey: 'test-key',
@@ -148,7 +151,7 @@ describe('askAgent', () => {
       runSqlPool: fakePool,
     })
 
-    const requestArgs = doGenerateMock.mock.calls[0][0] as { tools?: { name: string }[] }
+    const requestArgs = doStreamMock.mock.calls[0][0] as { tools?: { name: string }[] }
     expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories'])
     expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 9, totalTokens: 24 })
   })
@@ -162,7 +165,7 @@ describe('askAgent', () => {
     const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock.mockResolvedValueOnce(textResponse('Van kaktuszunk 3500 Ft-ért.', 10, 6))
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Van kaktuszunk 3500 Ft-ért.', 10, 6))
 
     const result = await askAgent('Van e kaktusz 5000Ft-ért? ha igen a listát mentsd ki fileba', {
       apiKey: 'test-key',
@@ -181,30 +184,30 @@ describe('askAgent', () => {
     const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock.mockResolvedValueOnce({
-      content: [
-        {
-          type: 'tool-call' as const,
-          toolCallId: 'srv_1',
-          toolName: 'web_search',
-          input: JSON.stringify({ query: 'pozsgás gondozása télen' }),
-          providerExecuted: true,
-        },
-        {
-          type: 'tool-result' as const,
-          toolCallId: 'srv_1',
-          toolName: 'web_search',
-          result: [{ type: 'web_search_result', url: 'https://example.com', title: 'Pozsgások télen', pageAge: null }],
-          providerExecuted: true,
-        },
-        { type: 'text' as const, text: 'Télen ritkábban öntözd, fényes helyre tedd.' },
-      ],
-      finishReason: { unified: 'stop' as const, raw: undefined },
-      usage: {
-        inputTokens: { total: 30, noCache: 30, cacheRead: undefined, cacheWrite: undefined },
-        outputTokens: { total: 15, text: 15, reasoning: undefined },
-      },
-      warnings: [],
+    doStreamMock.mockResolvedValueOnce({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: 'stream-start' as const, warnings: [] },
+          {
+            type: 'tool-call' as const,
+            toolCallId: 'srv_1',
+            toolName: 'web_search',
+            input: JSON.stringify({ query: 'pozsgás gondozása télen' }),
+            providerExecuted: true,
+          },
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'srv_1',
+            toolName: 'web_search',
+            result: [{ type: 'web_search_result', url: 'https://example.com', title: 'Pozsgások télen', pageAge: null }],
+            providerExecuted: true,
+          },
+          { type: 'text-start' as const, id: '1' },
+          { type: 'text-delta' as const, id: '1', delta: 'Télen ritkábban öntözd, fényes helyre tedd.' },
+          { type: 'text-end' as const, id: '1' },
+          { type: 'finish' as const, finishReason: { unified: 'stop' as const, raw: undefined }, usage: usagePart(30, 15) },
+        ],
+      }),
     })
 
     const result = await askAgent('hogyan gondozzam a pozsgásaimat télen?', {
@@ -214,7 +217,7 @@ describe('askAgent', () => {
       runSqlPool: fakePool,
     })
 
-    expect(doGenerateMock).toHaveBeenCalledTimes(1)
+    expect(doStreamMock).toHaveBeenCalledTimes(1)
     expect(result.answer).toBe('Télen ritkábban öntözd, fényes helyre tedd.')
     expect(result.usage).toEqual({ inputTokens: 30, outputTokens: 15, totalTokens: 45 })
   })
@@ -227,9 +230,9 @@ describe('askAgent', () => {
     const fakePool = { query: queryMock } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock
-      .mockResolvedValueOnce(toolCallResponse('call_1', 'listCategories', {}, 18, 9))
-      .mockResolvedValueOnce(textResponse('A következő kategóriák érhetők el: kaktusz, pozsgás, szobanövény.', 12, 6))
+    doStreamMock
+      .mockResolvedValueOnce(toolCallStreamResponse('call_1', 'listCategories', {}, 18, 9))
+      .mockResolvedValueOnce(textStreamResponse('A következő kategóriák érhetők el: kaktusz, pozsgás, szobanövény.', 12, 6))
 
     const result = await askAgent('milyen kategóriák vannak?', {
       apiKey: 'test-key',
@@ -250,9 +253,9 @@ describe('askAgent', () => {
     const fakePool = { query: queryMock } as unknown as import('pg').Pool
     const logger = createFakeLogger()
 
-    doGenerateMock
-      .mockResolvedValueOnce(toolCallResponse('call_1', 'runSql', { query: 'DELETE FROM products' }, 20, 10))
-      .mockResolvedValueOnce(textResponse('Nem tudom törölni az adatot, csak olvasni férek hozzá.', 15, 8))
+    doStreamMock
+      .mockResolvedValueOnce(toolCallStreamResponse('call_1', 'runSql', { query: 'DELETE FROM products' }, 20, 10))
+      .mockResolvedValueOnce(textStreamResponse('Nem tudom törölni az adatot, csak olvasni férek hozzá.', 15, 8))
 
     const result = await askAgent('töröld a raktárkészletet', {
       apiKey: 'test-key',
@@ -265,5 +268,30 @@ describe('askAgent', () => {
     expect(result.answer).toBe('Nem tudom törölni az adatot, csak olvasni férek hozzá.')
     const toolCalls = (logger.entries[0] as { toolCalls: { error?: string }[] }).toolCalls
     expect(toolCalls[0].error).toBeDefined()
+  })
+})
+
+describe('streamAskAgent', () => {
+  it('yields text deltas live and resolves the same final result as askAgent', async () => {
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Szia! Miben segíthetek?', 10, 5))
+    const logger = createFakeLogger()
+
+    const stream = await streamAskAgent('szia', { apiKey: 'test-key', model: 'claude-test', logger })
+
+    const chunks: string[] = []
+    for await (const chunk of stream.textStream) {
+      chunks.push(chunk)
+    }
+    const result = await stream.result
+
+    expect(chunks.join('')).toBe('Szia! Miben segíthetek?')
+    expect(result.answer).toBe('Szia! Miben segíthetek?')
+    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+    expect(logger.entries).toHaveLength(1)
+  })
+
+  it('rejects immediately for an empty question, without starting a stream', async () => {
+    await expect(streamAskAgent('', { apiKey: 'test-key', model: 'claude-test' })).rejects.toThrow()
+    expect(doStreamMock).not.toHaveBeenCalled()
   })
 })

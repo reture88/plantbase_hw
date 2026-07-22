@@ -2,11 +2,11 @@ import Fastify from 'fastify'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiEnv } from '../config/env'
 
-const askAgentMock = vi.fn()
+const streamAskAgentMock = vi.fn()
 const saveGeneratedQuoteMock = vi.fn()
 
 vi.mock('@plantbase/core', () => ({
-  askAgent: askAgentMock,
+  streamAskAgent: streamAskAgentMock,
   saveGeneratedQuote: saveGeneratedQuoteMock,
 }))
 
@@ -21,8 +21,19 @@ const env: ApiEnv = {
   databaseUrlReadonly: 'postgres://test',
 }
 
+async function* textStream(...chunks: string[]) {
+  for (const chunk of chunks) yield chunk
+}
+
+function parseSseEvents(body: string): unknown[] {
+  return body
+    .split('\n\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice('data: '.length)))
+}
+
 beforeEach(() => {
-  askAgentMock.mockReset()
+  streamAskAgentMock.mockReset()
   saveGeneratedQuoteMock.mockReset()
 })
 
@@ -40,28 +51,39 @@ describe('POST /api/ask', () => {
     const response = await app.inject({ method: 'POST', url: '/api/ask', payload: {} })
 
     expect(response.statusCode).toBe(400)
-    expect(askAgentMock).not.toHaveBeenCalled()
+    expect(streamAskAgentMock).not.toHaveBeenCalled()
   })
 
-  it('returns the answer without a quoteUrl when no export was requested', async () => {
-    askAgentMock.mockResolvedValueOnce({ answer: 'Van kaktuszunk 3500 Ft-ért.', wantsFileExport: false })
+  it('streams text deltas as SSE and finishes with a done event without a quoteUrl', async () => {
+    streamAskAgentMock.mockResolvedValueOnce({
+      textStream: textStream('Van ', 'kaktuszunk ', '3500 Ft-ért.'),
+      result: Promise.resolve({ answer: 'Van kaktuszunk 3500 Ft-ért.', wantsFileExport: false }),
+    })
     saveGeneratedQuoteMock.mockResolvedValueOnce(undefined)
     const app = buildApp()
 
     const response = await app.inject({ method: 'POST', url: '/api/ask', payload: { question: 'Van kaktuszotok?' } })
+    const events = parseSseEvents(response.body)
 
-    expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ answer: 'Van kaktuszunk 3500 Ft-ért.', quoteUrl: undefined })
+    expect(events).toEqual([
+      { type: 'text-delta', text: 'Van ' },
+      { type: 'text-delta', text: 'kaktuszunk ' },
+      { type: 'text-delta', text: '3500 Ft-ért.' },
+      { type: 'done', quoteUrl: undefined },
+    ])
   })
 
-  it('returns a quoteUrl pointing at the download route when an export was saved', async () => {
-    askAgentMock.mockResolvedValueOnce({ answer: 'Íme az árajánlat.', wantsFileExport: true })
+  it('includes a quoteUrl in the done event when an export was saved', async () => {
+    streamAskAgentMock.mockResolvedValueOnce({
+      textStream: textStream('Íme az árajánlat.'),
+      result: Promise.resolve({ answer: 'Íme az árajánlat.', wantsFileExport: true }),
+    })
     saveGeneratedQuoteMock.mockResolvedValueOnce({ filename: 'arajanlat.xlsx', filePath: 'quotes/arajanlat.xlsx' })
     const app = buildApp()
 
     const response = await app.inject({ method: 'POST', url: '/api/ask', payload: { question: 'Mentsd ki fájlba!' } })
+    const events = parseSseEvents(response.body)
 
-    expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ answer: 'Íme az árajánlat.', quoteUrl: '/api/quotes/arajanlat.xlsx' })
+    expect(events.at(-1)).toEqual({ type: 'done', quoteUrl: '/api/quotes/arajanlat.xlsx' })
   })
 })

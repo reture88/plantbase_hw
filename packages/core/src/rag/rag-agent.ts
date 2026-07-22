@@ -1,6 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
-import { generateText } from 'ai'
+import { streamText } from 'ai'
 import type { Pool } from 'pg'
 import { z } from 'zod'
 import type { RagJsonlLogger } from '../logging/rag-jsonl-logger'
@@ -17,6 +17,7 @@ const RERANK_TOP_K = 5
 const ANSWER_MAX_TOKENS = 1024
 
 const NO_ANSWER_MARKER = 'NINCS_ELEG_INFORMACIO'
+const NO_ANSWER_TEXT = 'A növényápolási tudásbázis nem tartalmaz elég információt ehhez a kérdéshez.'
 
 const GROUNDED_SYSTEM_PROMPT = `<role>
 Egy növényápolási szakértő asszisztens vagy, aki KIZÁRÓLAG a lenti <context> tartalma alapján válaszol a felhasználó kérdésére.
@@ -36,14 +37,25 @@ export type AskRagConfig = {
   logger?: RagJsonlLogger
 }
 
+export type RagStream = {
+  /** Csak a ténylegesen kiküldhető szöveget adja — elutasítás esetén üres (lásd `result.answer`). */
+  textStream: AsyncIterable<string>
+  result: Promise<RagAnswer>
+}
+
 function buildContextBlock(chunks: RetrievedChunk[]): string {
   return chunks.map((c) => `<chunk title="${c.title}" source="${c.source}">${c.content}</chunk>`).join('\n')
 }
 
-export async function askRag(question: string, config: AskRagConfig): Promise<RagAnswer> {
-  const parsedQuestion = QuestionSchema.parse(question)
-  const startedAt = Date.now()
+function uniqueSources(chunks: RetrievedChunk[]): RagAnswer['sources'] {
+  return [...new Map(chunks.map((c) => [c.source, { title: c.title, source: c.source }])).values()]
+}
 
+/**
+ * A HyDE → keresés → rerank lépések (nem felhasználó-néző szöveg, nincs
+ * értelme streamelni) — `askRag` és `streamAskRag` is ugyanezt futtatja.
+ */
+async function retrieveRerankedChunks(parsedQuestion: string, config: AskRagConfig) {
   const anthropic = createAnthropic({ apiKey: config.anthropicApiKey })
   const model = anthropic(config.anthropicModel)
   const openai = createOpenAI({ apiKey: config.openaiApiKey })
@@ -53,6 +65,48 @@ export async function askRag(question: string, config: AskRagConfig): Promise<Ra
   const embed = createEmbedder(embeddingModel)
   const rerank = createReranker(model, RERANK_TOP_K)
 
+  const hypotheticalAnswer = await generateHyde(parsedQuestion)
+  const [hypotheticalEmbedding] = await embed([hypotheticalAnswer])
+  const retrieved = await searchSimilarChunks(config.pool, hypotheticalEmbedding, RETRIEVE_LIMIT)
+  const reranked = await rerank(parsedQuestion, retrieved)
+
+  return { model, hypotheticalAnswer, retrieved, reranked }
+}
+
+/**
+ * A modell a `NO_ANSWER_MARKER`-t egyetlen, rövid tokensorozatként adja
+ * vissza (a system prompt szerint semmi mást) — ezért elég a marker
+ * hosszáig pufferelni: amint a puffer biztosan nem lehet a marker prefixe
+ * (vagy hosszabb nála), tudjuk, hogy valódi válasz jön, és onnantól minden
+ * további delta azonnal továbbmegy. Enélkül a kliens élőben látná a nyers
+ * "NINCS_ELEG_INFORMACIO" jelzőt streamelődni, mielőtt elutasításra váltanánk.
+ */
+async function* bufferAgainstMarker(rawTextStream: AsyncIterable<string>): AsyncGenerator<string> {
+  let buffer = ''
+  let disambiguated = false
+
+  for await (const delta of rawTextStream) {
+    if (disambiguated) {
+      yield delta
+      continue
+    }
+    buffer += delta
+    if (buffer.length > NO_ANSWER_MARKER.length || !NO_ANSWER_MARKER.startsWith(buffer)) {
+      disambiguated = true
+      yield buffer
+    }
+  }
+
+  if (!disambiguated && buffer.trim() !== NO_ANSWER_MARKER) {
+    yield buffer
+  }
+}
+
+/** A teljes válaszra vár (CLI/teszt-használatra). */
+export async function askRag(question: string, config: AskRagConfig): Promise<RagAnswer> {
+  const parsedQuestion = QuestionSchema.parse(question)
+  const startedAt = Date.now()
+
   let hypotheticalAnswer = ''
   let retrieved: RetrievedChunk[] = []
   let reranked: RetrievedChunk[] = []
@@ -61,35 +115,34 @@ export async function askRag(question: string, config: AskRagConfig): Promise<Ra
   let errorMessage: string | undefined
 
   try {
-    hypotheticalAnswer = await generateHyde(parsedQuestion)
-    const [hypotheticalEmbedding] = await embed([hypotheticalAnswer])
-
-    retrieved = await searchSimilarChunks(config.pool, hypotheticalEmbedding, RETRIEVE_LIMIT)
-    reranked = await rerank(parsedQuestion, retrieved)
+    const retrieval = await retrieveRerankedChunks(parsedQuestion, config)
+    hypotheticalAnswer = retrieval.hypotheticalAnswer
+    retrieved = retrieval.retrieved
+    reranked = retrieval.reranked
 
     if (reranked.length === 0) {
-      answer = 'A növényápolási tudásbázis nem tartalmaz elég információt ehhez a kérdéshez.'
+      answer = NO_ANSWER_TEXT
       grounded = false
       return { answer, grounded, sources: [] }
     }
 
-    const result = await generateText({
-      model,
+    const result = await streamText({
+      model: retrieval.model,
       system: GROUNDED_SYSTEM_PROMPT,
       prompt: `<context>\n${buildContextBlock(reranked)}\n</context>\n<question>${parsedQuestion}</question>`,
       maxOutputTokens: ANSWER_MAX_TOKENS,
     })
+    const text = await result.text
 
-    if (result.text.trim() === NO_ANSWER_MARKER) {
-      answer = 'A növényápolási tudásbázis nem tartalmaz elég információt ehhez a kérdéshez.'
+    if (text.trim() === NO_ANSWER_MARKER) {
+      answer = NO_ANSWER_TEXT
       grounded = false
       return { answer, grounded, sources: [] }
     }
 
-    answer = result.text
+    answer = text
     grounded = true
-    const sources = [...new Map(reranked.map((c) => [c.source, { title: c.title, source: c.source }])).values()]
-    return { answer, grounded, sources }
+    return { answer, grounded, sources: uniqueSources(reranked) }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : 'Ismeretlen hiba történt.'
     throw error
@@ -106,4 +159,67 @@ export async function askRag(question: string, config: AskRagConfig): Promise<Ra
       error: errorMessage,
     })
   }
+}
+
+/** Élő token-streamre (HTTP réteghez) — elutasítás esetén a `textStream` üres, a válasz a `result.answer`-ben van. */
+export async function streamAskRag(question: string, config: AskRagConfig): Promise<RagStream> {
+  const parsedQuestion = QuestionSchema.parse(question)
+  const startedAt = Date.now()
+
+  let hypotheticalAnswer = ''
+  let retrieved: RetrievedChunk[] = []
+  let reranked: RetrievedChunk[] = []
+
+  const retrieval = await retrieveRerankedChunks(parsedQuestion, config)
+  hypotheticalAnswer = retrieval.hypotheticalAnswer
+  retrieved = retrieval.retrieved
+  reranked = retrieval.reranked
+
+  const log = (answer: string, grounded: boolean, errorMessage: string | undefined) => {
+    config.logger?.append({
+      timestamp: new Date().toISOString(),
+      question: parsedQuestion,
+      hypotheticalAnswer,
+      retrievedChunkIds: retrieved.map((c) => c.id),
+      rerankedChunkIds: reranked.map((c) => c.id),
+      grounded,
+      answer,
+      durationMs: Date.now() - startedAt,
+      error: errorMessage,
+    })
+  }
+
+  if (reranked.length === 0) {
+    log(NO_ANSWER_TEXT, false, undefined)
+    return {
+      textStream: (async function* () {})(),
+      result: Promise.resolve({ answer: NO_ANSWER_TEXT, grounded: false, sources: [] }),
+    }
+  }
+
+  const streamResult = streamText({
+    model: retrieval.model,
+    system: GROUNDED_SYSTEM_PROMPT,
+    prompt: `<context>\n${buildContextBlock(reranked)}\n</context>\n<question>${parsedQuestion}</question>`,
+    maxOutputTokens: ANSWER_MAX_TOKENS,
+  })
+
+  const result = (async (): Promise<RagAnswer> => {
+    let errorMessage: string | undefined
+    try {
+      const text = await streamResult.text
+      if (text.trim() === NO_ANSWER_MARKER) {
+        log(NO_ANSWER_TEXT, false, undefined)
+        return { answer: NO_ANSWER_TEXT, grounded: false, sources: [] }
+      }
+      log(text, true, undefined)
+      return { answer: text, grounded: true, sources: uniqueSources(reranked) }
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : 'Ismeretlen hiba történt.'
+      log('', false, errorMessage)
+      throw error
+    }
+  })()
+
+  return { textStream: bufferAgainstMarker(streamResult.textStream), result }
 }
