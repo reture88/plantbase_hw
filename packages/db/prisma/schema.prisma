@@ -31,3 +31,30 @@ model Product {
 
   @@map("products")
 }
+
+model KnowledgeDocument {
+  id             Int      @id @default(autoincrement())
+  slug           String   @unique
+  title          String
+  source         String
+  category       String
+  contentHash    String
+  chunkCount     Int
+  lastIngestedAt DateTime
+  chunks         KnowledgeChunk[]
+
+  @@map("knowledge_documents")
+}
+
+model KnowledgeChunk {
+  id         Int               @id @default(autoincrement())
+  documentId Int
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  heading    String?
+  content    String
+  embedding  Unsupported("vector(1536)")
+
+  @@unique([documentId, chunkIndex])
+  @@map("knowledge_chunks")
+}
