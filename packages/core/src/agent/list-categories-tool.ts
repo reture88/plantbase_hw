@@ -1,25 +1,35 @@
-import type Anthropic from '@anthropic-ai/sdk'
+import { tool, type Tool } from 'ai'
 import type { Pool } from 'pg'
+import { z } from 'zod'
+import type { ToolCallLogEntry } from '../logging/jsonl-logger'
 
 export const LIST_CATEGORIES_TOOL_NAME = 'listCategories'
-
-export const listCategoriesToolDefinition: Anthropic.Tool = {
-  name: LIST_CATEGORIES_TOOL_NAME,
-  description:
-    'Az elérhető növény-kategóriák listázása a products táblán (SELECT DISTINCT category). Használd, ha bizonytalan vagy a pontos kategórianévben, vagy a felhasználó a választható kategóriákra kérdez.',
-  input_schema: {
-    type: 'object',
-    properties: {},
-  },
-}
 
 export type ListCategoriesResult = {
   categories: string[]
 }
 
-export function createListCategoriesHandler(pool: Pool) {
-  return async function listCategoriesHandler(): Promise<ListCategoriesResult> {
-    const result = await pool.query<{ category: string }>('SELECT DISTINCT category FROM products ORDER BY category')
-    return { categories: result.rows.map((row) => row.category) }
-  }
+export function createListCategoriesTool(
+  pool: Pool,
+  logSink: ToolCallLogEntry[],
+): Tool<Record<string, never>, ListCategoriesResult> {
+  return tool({
+    description:
+      'Az elérhető növény-kategóriák listázása a products táblán (SELECT DISTINCT category). Használd, ha bizonytalan vagy a pontos kategórianévben, vagy a felhasználó a választható kategóriákra kérdez.',
+    inputSchema: z.object({}),
+    execute: async (): Promise<ListCategoriesResult> => {
+      const startedAt = Date.now()
+      const result = await pool.query<{ category: string }>('SELECT DISTINCT category FROM products ORDER BY category')
+      const output: ListCategoriesResult = { categories: result.rows.map((row) => row.category) }
+
+      logSink.push({
+        tool: LIST_CATEGORIES_TOOL_NAME,
+        input: {},
+        resultRowCount: output.categories.length,
+        resultSample: output.categories,
+        durationMs: Date.now() - startedAt,
+      })
+      return output
+    },
+  })
 }

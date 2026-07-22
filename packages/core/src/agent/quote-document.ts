@@ -1,19 +1,23 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { anthropic, createAnthropic, type AnthropicLanguageModelOptions } from '@ai-sdk/anthropic'
+import { generateText, isStepCount } from 'ai'
 
-// Anthropic hivatalos Skill (xlsx) + code_execution tool — a dokumentum a
-// szerver-oldali konténerben generálódik, nem saját fejlesztésű logika.
-const QUOTE_DOCUMENT_BETAS: Array<'code-execution-2025-08-25' | 'skills-2025-10-02'> = [
-  'code-execution-2025-08-25',
-  'skills-2025-10-02',
-]
 // A hivatalos Skills-példák 16000 max_tokens-szel dolgoznak — az xlsx-generálás
 // több kód-végrehajtási körből állhat (csomagtelepítés, szkript írása/futtatása),
 // egy alacsonyabb korlát a fájl elkészülte előtt vághatja el a választ.
 const QUOTE_MAX_TOKENS = 16000
-// A code_execution szerver-oldali tool a web_search-höz hasonlóan `pause_turn`-nel
-// állhat meg a saját belső lépés-limitje miatt; ilyenkor újra kell küldeni az eddigi
-// üzeneteket a folytatáshoz. Ez a korlát a végtelen ciklus elleni védelem.
-const QUOTE_MAX_TURNS = 5
+// Több lépés is kellhet, mire a konténerben elkészül és visszaérkezik a fájl —
+// ezt (a korábbi kézzel írt pause_turn-kezeléssel szemben) most a generateText
+// saját stopWhen-mechanizmusa intézi.
+const QUOTE_MAX_STEPS = 5
+
+// Az AI SDK Files API-ja (`anthropic.files()`) jelenleg csak feltöltést tud
+// (`uploadFile`), letöltést nem — a generált fájl bájtjaihoz és a
+// metaadataihoz ezért közvetlenül, a hivatalos REST végpontokat hívjuk. A
+// fejlécértékek (`anthropic-version`, `anthropic-beta`) a @ai-sdk/anthropic
+// csomag saját, ugyanerre a Files API-ra használt értékeivel egyeznek.
+const FILES_API_BASE_URL = 'https://api.anthropic.com/v1/files'
+const ANTHROPIC_VERSION = '2023-06-01'
+const FILES_API_BETA = 'files-api-2025-04-14'
 
 export type QuoteDocumentConfig = {
   apiKey: string
@@ -25,67 +29,82 @@ export type QuoteDocumentResult = {
   filename: string
 }
 
-function findGeneratedFileId(content: Anthropic.Beta.BetaContentBlock[]): string | undefined {
-  for (const block of content) {
-    if (block.type === 'bash_code_execution_tool_result' && block.content.type === 'bash_code_execution_result') {
-      const output = block.content.content.find((item) => item.type === 'bash_code_execution_output')
-      if (output) {
-        return output.file_id
-      }
+type CodeExecutionOutputContent = {
+  content?: Array<{ type: string; file_id?: string }>
+}
+
+function findGeneratedFileId(toolResults: ReadonlyArray<{ output?: unknown }>): string | undefined {
+  for (const toolResult of toolResults) {
+    const output = toolResult.output as CodeExecutionOutputContent | undefined
+    // A code_execution tool több, egymástól eltérő output-alakot ad vissza a
+    // lépés fajtájától függően (szkript-írás, fájlnézegetés, bash-futtatás...) —
+    // csak azokban van tömb a `content`-ben, amik ténylegesen fájlt generáltak.
+    if (!Array.isArray(output?.content)) continue
+
+    const fileEntry = output.content.find(
+      (item) => item.type === 'code_execution_output' || item.type === 'bash_code_execution_output',
+    )
+    if (fileEntry?.file_id) {
+      return fileEntry.file_id
     }
   }
   return undefined
+}
+
+function filesApiHeaders(apiKey: string): Record<string, string> {
+  return {
+    'x-api-key': apiKey,
+    'anthropic-version': ANTHROPIC_VERSION,
+    'anthropic-beta': FILES_API_BETA,
+  }
 }
 
 export async function generateQuoteDocument(
   recommendationText: string,
   config: QuoteDocumentConfig,
 ): Promise<QuoteDocumentResult> {
-  const client = new Anthropic({ apiKey: config.apiKey })
+  const model = createAnthropic({ apiKey: config.apiKey })(config.model)
 
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    {
-      role: 'user',
-      content: `Készíts egy formázott, magyar nyelvű Excel árajánlatot (.xlsx fájl) az alábbi növény-ajánlás alapján. A táblázat tartalmazzon tételes listát (növény neve, mennyiség, egységár Ft, részösszeg Ft) és egy végösszeg sort.\n\nAjánlás:\n${recommendationText}`,
+  const result = await generateText({
+    model,
+    maxOutputTokens: QUOTE_MAX_TOKENS,
+    prompt: `Készíts egy formázott, magyar nyelvű Excel árajánlatot (.xlsx fájl) az alábbi növény-ajánlás alapján. A táblázat tartalmazzon tételes listát (növény neve, mennyiség, egységár Ft, részösszeg Ft) és egy végösszeg sort.\n\nAjánlás:\n${recommendationText}`,
+    tools: { code_execution: anthropic.tools.codeExecution_20260120() },
+    stopWhen: isStepCount(QUOTE_MAX_STEPS),
+    providerOptions: {
+      anthropic: {
+        container: {
+          skills: [{ type: 'anthropic', skillId: 'xlsx', version: 'latest' }],
+        },
+      } satisfies AnthropicLanguageModelOptions,
     },
-  ]
+  })
 
-  for (let turn = 0; turn < QUOTE_MAX_TURNS; turn++) {
-    const response = await client.beta.messages.create({
-      model: config.model,
-      max_tokens: QUOTE_MAX_TOKENS,
-      betas: QUOTE_DOCUMENT_BETAS,
-      container: {
-        skills: [{ type: 'anthropic', skill_id: 'xlsx', version: 'latest' }],
-      },
-      tools: [{ type: 'code_execution_20260521', name: 'code_execution' }],
-      messages,
-    })
-
-    const fileId = findGeneratedFileId(response.content)
-    if (fileId) {
-      const metadata = await client.beta.files.retrieveMetadata(fileId)
-      return { fileId, filename: metadata.filename }
-    }
-
-    if (response.stop_reason === 'pause_turn') {
-      messages.push({ role: 'assistant', content: response.content })
-      continue
-    }
-
+  const fileId = findGeneratedFileId(result.toolResults)
+  if (!fileId) {
     throw new Error(
-      `Nem sikerült árajánlat-dokumentumot generálni: nem érkezett fájl a válaszban (stop_reason: ${response.stop_reason}).`,
+      `Nem sikerült árajánlat-dokumentumot generálni: nem érkezett fájl a válaszban (finishReason: ${result.finishReason}).`,
     )
   }
 
-  throw new Error(
-    `Nem sikerült árajánlat-dokumentumot generálni: a megengedett lépésszámon (${QUOTE_MAX_TURNS}) belül nem készült fájl.`,
-  )
+  const metadataResponse = await fetch(`${FILES_API_BASE_URL}/${fileId}`, {
+    headers: filesApiHeaders(config.apiKey),
+  })
+  if (!metadataResponse.ok) {
+    throw new Error(`Nem sikerült lekérni a generált fájl metaadatait (HTTP ${metadataResponse.status}).`)
+  }
+  const metadata = (await metadataResponse.json()) as { filename?: string }
+
+  return { fileId, filename: metadata.filename ?? `arajanlat-${fileId}.xlsx` }
 }
 
 export async function downloadQuoteDocument(fileId: string, config: QuoteDocumentConfig): Promise<Buffer> {
-  const client = new Anthropic({ apiKey: config.apiKey })
-  const response = await client.beta.files.download(fileId)
+  const response = await fetch(`${FILES_API_BASE_URL}/${fileId}/content`, {
+    headers: filesApiHeaders(config.apiKey),
+  })
+  if (!response.ok) {
+    throw new Error(`Nem sikerült letölteni a generált fájlt (HTTP ${response.status}).`)
+  }
   const arrayBuffer = await response.arrayBuffer()
   return Buffer.from(arrayBuffer)
 }

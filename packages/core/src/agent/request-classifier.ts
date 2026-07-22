@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { generateText } from 'ai'
 
 const CLASSIFIER_MAX_TOKENS = 20
 
@@ -33,22 +34,18 @@ export type ClassifierConfig = {
  */
 export async function classifyRequest(question: string, config: ClassifierConfig): Promise<RequestClassification> {
   try {
-    const client = new Anthropic({ apiKey: config.apiKey })
-    const response = await client.messages.create({
-      model: config.model,
-      max_tokens: CLASSIFIER_MAX_TOKENS,
+    const anthropic = createAnthropic({ apiKey: config.apiKey })
+    const result = await generateText({
+      model: anthropic(config.model),
       system: CLASSIFIER_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: question }],
+      prompt: question,
+      maxOutputTokens: CLASSIFIER_MAX_TOKENS,
     })
 
-    const text = response.content
-      .map((block) => (block.type === 'text' ? block.text : ''))
-      .join('\n')
-
     return {
-      isPlantRelated: parseAnswer(text, 'NÖVÉNY'),
-      wantsFileExport: parseAnswer(text, 'EXPORT'),
-      usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
+      isPlantRelated: parseAnswer(result.text, 'NÖVÉNY'),
+      wantsFileExport: parseAnswer(result.text, 'EXPORT'),
+      usage: { inputTokens: result.usage.inputTokens ?? 0, outputTokens: result.usage.outputTokens ?? 0 },
     }
   } catch {
     return { isPlantRelated: false, wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } }

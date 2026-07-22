@@ -1,25 +1,38 @@
+import { MockLanguageModelV4 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const createMock = vi.fn()
+const doGenerateMock = vi.fn()
+const mockModel = new MockLanguageModelV4({ doGenerate: doGenerateMock })
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(function AnthropicMock() {
-    return { messages: { create: createMock } }
-  }),
-}))
+vi.mock('@ai-sdk/anthropic', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ai-sdk/anthropic')>()
+  return {
+    ...actual,
+    createAnthropic: () => () => mockModel,
+  }
+})
 
 const { classifyRequest } = await import('./request-classifier')
 
+function mockTextResponse(text: string, inputTokens: number, outputTokens: number) {
+  return {
+    content: [{ type: 'text' as const, text }],
+    finishReason: { unified: 'stop' as const, raw: undefined },
+    usage: {
+      inputTokens: { total: inputTokens, noCache: inputTokens, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: outputTokens, text: outputTokens, reasoning: undefined },
+    },
+    warnings: [],
+  }
+}
+
 beforeEach(() => {
-  createMock.mockReset()
+  doGenerateMock.mockReset()
 })
 
 describe('classifyRequest', () => {
   it('should detect a plant-related question with no export intent', async () => {
-    createMock.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'NÖVÉNY: IGEN\nEXPORT: NEM' }],
-      usage: { input_tokens: 12, output_tokens: 6 },
-    })
+    doGenerateMock.mockResolvedValueOnce(mockTextResponse('NÖVÉNY: IGEN\nEXPORT: NEM', 12, 6))
 
     const result = await classifyRequest('van kaktuszunk 5000 ft alatt?', { apiKey: 'test-key', model: 'claude-test' })
 
@@ -31,10 +44,7 @@ describe('classifyRequest', () => {
   })
 
   it('should detect an explicit file export instruction', async () => {
-    createMock.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'NÖVÉNY: IGEN\nEXPORT: IGEN' }],
-      usage: { input_tokens: 14, output_tokens: 6 },
-    })
+    doGenerateMock.mockResolvedValueOnce(mockTextResponse('NÖVÉNY: IGEN\nEXPORT: IGEN', 14, 6))
 
     const result = await classifyRequest('Van e kaktusz 5000Ft-ért? ha igen a listát mentsd ki fileba', {
       apiKey: 'test-key',
@@ -46,10 +56,7 @@ describe('classifyRequest', () => {
   })
 
   it('should classify an off-topic question as not plant-related', async () => {
-    createMock.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'NÖVÉNY: NEM\nEXPORT: NEM' }],
-      usage: { input_tokens: 10, output_tokens: 6 },
-    })
+    doGenerateMock.mockResolvedValueOnce(mockTextResponse('NÖVÉNY: NEM\nEXPORT: NEM', 10, 6))
 
     const result = await classifyRequest('mi Franciaország fővárosa?', { apiKey: 'test-key', model: 'claude-test' })
 
@@ -58,7 +65,7 @@ describe('classifyRequest', () => {
   })
 
   it('should fail closed (no web_search, no export) when the classifier call throws', async () => {
-    createMock.mockRejectedValueOnce(new Error('rate limited'))
+    doGenerateMock.mockRejectedValueOnce(new Error('rate limited'))
 
     const result = await classifyRequest('van pozsgásunk?', { apiKey: 'test-key', model: 'claude-test' })
 
