@@ -26,3 +26,25 @@ export function loadReadonlyDatabaseUrlFromEnv(): string {
 
   return databaseUrlReadonly
 }
+
+/** A tudásbázis-ingestion írja ezzel a kapcsolattal a knowledge_documents/knowledge_chunks táblákat. */
+export function loadWritableDatabaseUrlFromEnv(): string {
+  const databaseUrl = process.env.DATABASE_URL
+
+  if (!databaseUrl) {
+    throw new Error('Hiányzik a DATABASE_URL környezeti változó (.env).')
+  }
+
+  return databaseUrl
+}
+
+/** Az embedding-modell (OpenAI) API-kulcsa — csak az `ingest-knowledge` parancshoz és a RAG-kereséshez kell. */
+export function loadOpenAiApiKeyFromEnv(): string {
+  const apiKey = process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Hiányzik az OPENAI_API_KEY környezeti változó (.env) — ez az embedding-modellhez szükséges.')
+  }
+
+  return apiKey
+}

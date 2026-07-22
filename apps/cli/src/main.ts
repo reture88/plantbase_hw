@@ -3,6 +3,7 @@ process.loadEnvFile()
 import { Command } from 'commander'
 import { createJsonlLogger, createReadonlyPool } from '@plantbase/core'
 import { registerAskCommand } from './commands/ask.command'
+import { registerIngestKnowledgeCommand } from './commands/ingest-knowledge.command'
 import { loadAgentConfigFromEnv, loadReadonlyDatabaseUrlFromEnv } from './config/agent-config'
 import { startInteractiveLoop } from './interactive/interactive-loop'
 
@@ -15,6 +16,7 @@ const logger = createJsonlLogger()
 const runSqlPool = createReadonlyPool(loadReadonlyDatabaseUrlFromEnv())
 
 registerAskCommand(program, agentConfig, logger, runSqlPool)
+registerIngestKnowledgeCommand(program, agentConfig)
 
 if (process.argv.length <= 2) {
   startInteractiveLoop(agentConfig, logger, runSqlPool)
