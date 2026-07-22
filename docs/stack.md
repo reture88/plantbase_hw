@@ -4,7 +4,7 @@ Elv: iparági best practice, legfrissebb STABIL verzió (se cutting-edge, se ela
 
 - Nyelv / monorepo: TypeScript (strict), Nx, pnpm, Node LTS
 - DB: PostgreSQL lokálisan docker-compose-ban (OrbStack futtatja), Prisma (ORM: séma, migráció, seed, typed query). Helyben dolgozunk, nincs felhő-DB.
-- Agent: Anthropic SDK (hivatalos kliens, nem nyers HTTP) + saját tool-use loop, agent-framework nélkül. Zod (validáció)
+- Agent: Vercel AI SDK (`ai` + `@ai-sdk/anthropic`) — `generateText` + explicit tools/system prompt a kódban, agent-framework nélkül. Zod (validáció)
 - CLI: commander + node:readline
 - Tooling: Vitest, ESLint + Prettier, tsx
 - Eszköz: Zed, gh CLI
