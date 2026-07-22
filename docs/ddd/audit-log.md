@@ -39,3 +39,18 @@ A `packages/core` agent-rétege lecserélődött `@anthropic-ai/sdk`-ról Vercel
 
 ### Megjegyzés
 - **Nincs domain-drift.** A migráció tudatosan úgy lett megtervezve és leellenőrizve, hogy a publikus típusok (`AskAgentResult`, `AskAgentConfig`, `Usage`, `RequestClassification`, `RunSqlResult`, `ListCategoriesResult`, `QuoteDocumentResult`) alakja és a `model.md`-ben dokumentált kulcs-invariánsok (web_search csak `isPlantRelated`-nél, export csak `wantsFileExport`-nál, `COALESCE(sale_price, price)`, read-only katalógus) egyetlen bitet sem változtak — csak a mögöttes SDK/implementáció. A `docs/ddd/` ezért tartalmilag továbbra is pontos, nem igényelt frissítést.
+
+## 2026-07-22 — audit (e677335..beaccea): Plant Care Knowledge Base (RAG-pipeline) hozzáadása
+
+A `seed/knowledge/` alapján épített, pgvector-alapú RAG-tudásbázis (`packages/core/src/rag/`), a hozzá tartozó `ingest-knowledge` CLI-parancs, és két új app (`apps/api`, `apps/web`) került a rendszerbe. A script 262 érintett fájlt jelölt (ebből a `seed/knowledge/*.md` cikkek nagy része `declaration`-jelzéssel — hamis pozitív, mert ezek szövegcikkek, nem kód; a valódi domain-releváns fájlokat lásd lent).
+
+### Auto-frissítve
+- `glossary.md`: felvéve két új entitás — `KnowledgeDocument`, `KnowledgeChunk` (a "Plant Care Knowledge Base" bounded context, `packages/db/prisma/schema.prisma`).
+- `glossary.md`: felvéve hat új value object — `SavedQuote`, `RetrievedChunk`, `RagAnswer`, `KnowledgeChunkInput`/`ParsedKnowledgeDocument`/`RawParagraph`, `IngestFileResult`, `RagQueryLogEntry`.
+- `model.md`: felvéve a második bounded context ("Plant Care Knowledge Base"), a hozzá tartozó aggregate-határ (`KnowledgeDocument` gyökér, `KnowledgeChunk` gyermek entitás, cascade-invariáns), és három kulcs-invariáns: grounded válaszadás/explicit elutasítás, a HyDE+rerank kétlépcsős keresés fail-safe viselkedése, és hogy az ingestion mindig explicit CLI-lépés, sosem érhető el a frontendről.
+
+### Javasolt, jóváhagyásra vár
+- Nincs — az összes talált eltérés új, korábban dokumentálatlan fogalom felvétele volt (bővítés), nem meglévő fogalom jelentés- vagy határváltozása.
+
+### Megjegyzés
+- A `seed/knowledge/*.md` cikkek maguk NEM domain-fogalmak (nyers, scrapelt szövegtartalom — a script `declaration`-ként jelölte, mert Markdown fejlécet `#`-ként ismer fel, ez egy ismert zaj-forrás a heurisztikában, nem valódi kód-deklaráció), ezért nem kerültek be a glossary.md-be egyenként — a rájuk épülő `KnowledgeDocument`/`KnowledgeChunk` modell a releváns absztrakció.
