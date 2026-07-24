@@ -21,7 +21,7 @@
 
 ### RequestClassification
 - **Kód:** `packages/core/src/agent/request-classifier.ts`
-- **Definíció:** egy beérkező felhasználói kérdés előzetes, LLM-alapú besorolásának eredménye: `isPlantRelated` (kapuzza, hogy a `web_search` tool felajánlásra kerüljön-e) és `wantsFileExport` (kapuzza az Excel-export indítását), plusz a besoroláshoz felhasznált token-mennyiség (`usage`). Nincs önálló azonosítója, tisztán az adattartalma határozza meg — minden `askAgent` hívás új példányt hoz létre.
+- **Definíció:** egy beérkező felhasználói kérdés előzetes, LLM-alapú besorolásának eredménye: `intent` (`'catalog' | 'knowledge_base'` — az `unified-agent.ts` ez alapján dönt a `runSql`-ág vagy a RAG-ág között) és `wantsFileExport` (kapuzza a dokumentum-exportot), plusz a besoroláshoz felhasznált token-mennyiség (`usage`). Nincs önálló azonosítója, tisztán az adattartalma határozza meg. **Korábban** `isPlantRelated`-et hordozott, ami a `web_search` toolt kapuzta a katalógus-agenten belül — ez a mező megszűnt, mert a `web_search` felelőssége áthelyeződött a tudásbázis-ág fallback-lépésére (lásd `docs/ddd/model.md`).
 
 ### Usage
 - **Kód:** `packages/core/src/agent/ask-agent.ts`
@@ -49,7 +49,15 @@
 
 ### SavedQuote
 - **Kód:** `packages/core/src/agent/quote-export.ts`
-- **Definíció:** egy sikeresen legenerált és lemezre mentett Excel árajánlat eredménye (`filename`, `filePath`) — a `saveGeneratedQuote` közös segédfüggvény adja vissza, amit az `apps/cli` és az `apps/api` `/api/ask` route-ja is használ, hogy ne duplikálódjon a "csak explicit exportkérésre generálj fájlt" logika.
+- **Definíció:** egy sikeresen legenerált és lemezre mentett dokumentum eredménye (`filename`, `filePath`) — a `saveGeneratedDocument(content, format, wantsFileExport, config)` adja vissza (`format: 'xlsx' | 'pdf'`), amit az `apps/api` `/api/chat` route-ja használ, hogy ne duplikálódjon a "csak explicit exportkérésre generálj fájlt" logika. A formátumot a hívó választja a válasz forrása szerint (`UnifiedChatResult.source`).
+
+### UnifiedChatResult / UnifiedChatEvent / UnifiedChatConfig
+- **Kód:** `packages/core/src/agent/unified-agent.ts`
+- **Definíció:** az egységes chat-orchestrátor (`streamUnifiedChat`) típusai. `UnifiedChatEvent` a streamelt esemény-egység (`text-delta` élő szöveg, vagy `notice` — a tudásbázis-fallback feltűnő jelzése). `UnifiedChatResult` a végeredmény: `answer`, `source` (`'catalog' | 'knowledge_base' | 'web_search'` — ez dönti el az exportformátumot is), `wantsFileExport`, opcionális `sources`. `UnifiedChatConfig` a bemeneti konfiguráció (mindkét Anthropic- és OpenAI-kulcs/modell, egyetlen közös `pool`, mindkét logger).
+
+### WebFallbackResult
+- **Kód:** `packages/core/src/agent/web-fallback-agent.ts`
+- **Definíció:** a `streamWebFallbackAnswer` végeredménye (`answer`) — kizárólag akkor hívódik, amikor a RAG-pipeline (`askRag`) nem tudott grounded választ adni; a `web_search` toolt ez, és KIZÁRÓLAG ez a függvény ajánlja fel a modellnek.
 
 ### RetrievedChunk
 - **Kód:** `packages/core/src/rag/types.ts`

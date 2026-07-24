@@ -54,3 +54,19 @@ A `seed/knowledge/` alapján épített, pgvector-alapú RAG-tudásbázis (`packa
 
 ### Megjegyzés
 - A `seed/knowledge/*.md` cikkek maguk NEM domain-fogalmak (nyers, scrapelt szövegtartalom — a script `declaration`-ként jelölte, mert Markdown fejlécet `#`-ként ismer fel, ez egy ismert zaj-forrás a heurisztikában, nem valódi kód-deklaráció), ezért nem kerültek be a glossary.md-be egyenként — a rájuk épülő `KnowledgeDocument`/`KnowledgeChunk` modell a releváns absztrakció.
+
+## 2026-07-24 — audit (beaccea..a0fbe68): egységes chat, web_search-fallback, PDF-export, modellváltás
+
+Öt, egymással összefüggő user-kérésre végrehajtott változás: (1) a két chat-fül (katalógus/tudásbázis) egyetlen chat-ablakká olvasztva, egy `unified-agent.ts` orchestrátorral; (2) a `web_search` felelőssége áthelyezve a katalógus-agensről a tudásbázis-ág fallback-lépésére; (3) PDF-export bevezetve a tudásbázis/web_search-válaszokhoz (Excel marad katalógus-válaszoknál); (4) a rerank és a szemantikus chunk-split modellje Claude Haiku 4.5-ről gpt-5.4-mini-re váltva (ár/feladat-illeszkedés alapján, a HyDE Claude Haiku-n maradt). Ez a legelső eset, amikor egy **jelentés-/határváltozás** (nem puszta bővítés) történt egy már dokumentált fogalmon (`RequestClassification.isPlantRelated` megszűnt, `intent` váltotta) — ez a skill szabálya szerint alapesetben "csak javaslat" kategória lenne, de itt a változást a user explicit, részletes kéréseként, tudatosan hajtottam végre (nem a ddd-audit fedezte fel utólag) — a doksi-frissítés ezért nem "javaslat", hanem a már megtörtént, jóváhagyott változás rögzítése, jelezve a régi és az új állapotot is (lásd model.md "Korábban... 2026-07-24: domain-drift felismerve és javítva" jegyzetek).
+
+### Auto-frissítve
+- `glossary.md`: `RequestClassification` bejegyzés frissítve (`isPlantRelated` → `intent`, a mező jelentésváltozásának indoklásával).
+- `glossary.md`: `SavedQuote` bejegyzés frissítve (`saveGeneratedQuote` → `saveGeneratedDocument`, formátum-paraméterrel).
+- `glossary.md`: három új value object felvéve — `UnifiedChatResult`/`UnifiedChatEvent`/`UnifiedChatConfig`, `WebFallbackResult`.
+- `model.md`: a "Plant Catalog Agent" bounded context leírásából törölve a `web_search`; a "Plant Care Knowledge Base" invariánsai kiegészítve a fallback-viselkedéssel, a web_search új felelősség-határával, a HyDE/rerank modellváltással, és a `pruneRemovedDocuments` üres-lista védelmével (ez utóbbi egy tényleges incidens — teljes tudásbázis-törlés — nyomán vált explicit invariánssá).
+
+### Javasolt, jóváhagyásra vár
+- Nincs.
+
+### Megjegyzés
+- Ehhez az audithoz kapcsolódóan egy valódi, élesben előforduló hiba is javításra került (nem domain-modell kérdés, de érdemes megjegyezni): a `pruneRemovedDocuments` üres `keepSlugs`-ra a teljes tudásbázist törölte volna — ez ténylegesen bekövetkezett fejlesztés közben (202 dokumentum elveszett), a javítás és az újratöltés is megtörtént.
