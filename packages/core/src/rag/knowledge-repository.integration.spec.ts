@@ -50,6 +50,19 @@ describeIfDb('knowledge-repository (integration, real Postgres + pgvector)', () 
     expect(results.some((r) => r.documentSlug === slug && r.content.includes('aloe vera'))).toBe(true)
   })
 
+  it('strips embedded NUL bytes so a stray one never crashes the insert (Postgres rejects raw NUL in text columns)', async () => {
+    const contentWithNul = 'Tartalom egy' + String.fromCharCode(0) + 'karakterrel.'
+    await upsertDocument(
+      writePool,
+      { slug, title: 'Teszt cím', source: 'https://example.com/teszt', category: 'teszt', contentHash: 'hash-1', chunks: [chunk(0, contentWithNul)] },
+      [fakeEmbedding(6)],
+    )
+
+    const results = await searchSimilarChunks(readPool, fakeEmbedding(6), 5)
+    const stored = results.find((r) => r.documentSlug === slug)
+    expect(stored?.content).toBe('Tartalom egykarakterrel.')
+  })
+
   it('replaces old chunks when the same slug is upserted again with different content', async () => {
     await upsertDocument(writePool, { slug, title: 'Teszt cím', source: 'https://example.com/teszt', category: 'teszt', contentHash: 'hash-1', chunks: [chunk(0, 'régi tartalom')] }, [fakeEmbedding(2)])
     await upsertDocument(writePool, { slug, title: 'Teszt cím', source: 'https://example.com/teszt', category: 'teszt', contentHash: 'hash-2', chunks: [chunk(0, 'friss tartalom')] }, [fakeEmbedding(2)])
@@ -71,6 +84,16 @@ describeIfDb('knowledge-repository (integration, real Postgres + pgvector)', () 
     expect(hash).toBeNull()
     const chunkCount = await writePool.query('SELECT count(*) FROM knowledge_chunks WHERE "documentId" = (SELECT id FROM knowledge_documents WHERE slug = $1)', [slug])
     expect(Number(chunkCount.rows[0].count)).toBe(0)
+  })
+
+  it('does NOT wipe the knowledge base when keepSlugs is empty (guard against a misconfigured/empty source dir)', async () => {
+    await upsertDocument(writePool, { slug, title: 'Teszt cím', source: 'https://example.com/teszt', category: 'teszt', contentHash: 'hash-1', chunks: [chunk(0, 'megmaradó tartalom')] }, [fakeEmbedding(5)])
+
+    const removed = await pruneRemovedDocuments(writePool, [])
+
+    expect(removed).toEqual([])
+    const hash = await getDocumentContentHash(writePool, slug)
+    expect(hash).toBe('hash-1')
   })
 
   it('rejects writes on the read-only pool, independent of the app-level guard', async () => {
