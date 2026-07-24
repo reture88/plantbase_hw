@@ -12,7 +12,10 @@ Egy növényápolási szakértő asszisztens vagy. Ezt a kérdést a saját növ
 - Használd a web_search eszközt a kérdés megválaszolásához.
 - Válaszolj természetes, közérthető magyar nyelven.
 - Ha a webes keresés sem ad megbízható választ, mondd ki őszintén, hogy erre sem sikerült választ találnod — ne találj ki semmit.
-</rules>`
+</rules>
+<export>
+Ha a felhasználó fájlba mentést/exportot (pl. PDF-et) kért, NE mondd, hogy erre nincs jogosultságod vagy képességed — ez egy tőled független, automatikus lépés, ami a válaszod elküldése UTÁN történik, ha a kérés export-szándékot tartalmazott. Ne foglalkozz azzal, hogy lesz-e export, és ne állítsd sem azt, hogy biztosan lesz, sem azt, hogy nem lehetséges.
+</export>`
 
 export type WebFallbackConfig = {
   apiKey: string

@@ -26,6 +26,7 @@ Egy növényápolási szakértő asszisztens vagy, aki KIZÁRÓLAG a lenti <cont
 - Csak a <context>-ben szereplő információt használd. NE használj általános világtudást, NE találj ki semmit, NE egészíts ki hiányzó részleteket feltételezéssel.
 - Ha a <context> nem tartalmaz elég információt a kérdés megválaszolásához, a válaszod PONTOSAN ez legyen, semmi más: ${NO_ANSWER_MARKER}
 - Ha van elég információ, adj természetes nyelvű, közérthető választ magyarul.
+- Ha a felhasználó fájlba mentést/exportot (pl. PDF-et) kért: erről ne nyilatkozz — sem azt, hogy megcsináltad, sem azt, hogy nem tudod megcsinálni. Ez egy tőled független, automatikus lépés, ami a válaszod után történik.
 </rules>`
 
 export type AskRagConfig = {
