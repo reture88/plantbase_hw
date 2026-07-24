@@ -54,29 +54,8 @@ body {
 .app-header h1 {
   margin: 0 0 0.75rem;
   font-size: 1.4rem;
-}
-
-.app-tabs {
-  display: flex;
-  gap: 0.5rem;
   border-bottom: 1px solid var(--border);
-}
-
-.app-tabs button {
-  flex: 1;
-  padding: 0.65rem 0.5rem;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-
-.app-tabs button.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+  padding-bottom: 0.75rem;
 }
 
 .app-main {
@@ -135,24 +114,33 @@ body {
   color: var(--text);
 }
 
-.chat-bubble--pending {
+.chat-pending {
   color: var(--text-muted);
   font-style: italic;
 }
 
-.chat-refusal-badge {
+.chat-source-badge {
   display: inline-block;
   margin-bottom: 0.35rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--refusal) 20%, transparent);
-  color: var(--refusal);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
   font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
-.chat-quote-link {
+.chat-notice {
+  margin: 0 0 0.4rem !important;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--refusal) 18%, transparent);
+  color: var(--refusal);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.chat-file-link {
   display: inline-block;
   margin-top: 0.5rem;
   color: inherit;

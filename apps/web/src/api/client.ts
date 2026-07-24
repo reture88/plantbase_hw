@@ -1,20 +1,28 @@
-export type AskDone = {
-  quoteUrl?: string
+export type ChatSource = 'catalog' | 'knowledge_base' | 'web_search'
+
+export type ChatDone = {
+  source: ChatSource
+  sources?: { title: string; source: string }[]
+  fileUrl?: string
+  fileFormat?: 'xlsx' | 'pdf'
 }
 
-export type RagDone = {
-  answer: string
-  grounded: boolean
-  sources: { title: string; source: string }[]
+export type ChatCallbacks = {
+  onDelta: (text: string) => void
+  onNotice: (text: string) => void
 }
 
-type SseEvent = { type: 'text-delta'; text: string } | { type: 'error'; message: string } | ({ type: 'done' } & Record<string, unknown>)
+type SseEvent =
+  | { type: 'text-delta'; text: string }
+  | { type: 'notice'; text: string }
+  | { type: 'error'; message: string }
+  | ({ type: 'done' } & ChatDone)
 
-async function streamSse<TDone>(url: string, body: unknown, onDelta: (text: string) => void): Promise<TDone> {
-  const response = await fetch(url, {
+async function streamChatSse(question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ question }),
   })
 
   if (!response.ok) {
@@ -28,7 +36,7 @@ async function streamSse<TDone>(url: string, body: unknown, onDelta: (text: stri
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  let doneEvent: TDone | undefined
+  let doneEvent: ChatDone | undefined
 
   while (true) {
     const { value, done } = await reader.read()
@@ -43,11 +51,13 @@ async function streamSse<TDone>(url: string, body: unknown, onDelta: (text: stri
 
       const event = JSON.parse(rawEvent.slice('data: '.length)) as SseEvent
       if (event.type === 'text-delta') {
-        onDelta(event.text)
+        callbacks.onDelta(event.text)
+      } else if (event.type === 'notice') {
+        callbacks.onNotice(event.text)
       } else if (event.type === 'error') {
         throw new Error(event.message)
       } else if (event.type === 'done') {
-        doneEvent = event as TDone
+        doneEvent = { source: event.source, sources: event.sources, fileUrl: event.fileUrl, fileFormat: event.fileFormat }
       }
     }
   }
@@ -58,10 +68,6 @@ async function streamSse<TDone>(url: string, body: unknown, onDelta: (text: stri
   return doneEvent
 }
 
-export function askCatalog(question: string, onDelta: (text: string) => void): Promise<AskDone> {
-  return streamSse<AskDone>('/api/ask', { question }, onDelta)
-}
-
-export function askKnowledgeBase(question: string, onDelta: (text: string) => void): Promise<RagDone> {
-  return streamSse<RagDone>('/api/rag/chat', { question }, onDelta)
+export function askUnified(question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
+  return streamChatSse(question, callbacks)
 }
