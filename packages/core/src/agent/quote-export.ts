@@ -1,20 +1,24 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { downloadQuoteDocument, generateQuoteDocument, type QuoteDocumentConfig } from './quote-document'
+import { downloadQuoteDocument, generatePdfDocument, generateQuoteDocument, type QuoteDocumentConfig } from './quote-document'
 
 export type SavedQuote = {
   filename: string
   filePath: string
 }
 
+export type DocumentFormat = 'xlsx' | 'pdf'
+
 /**
- * Közös segédfüggvény, amit az `apps/cli` (`quote-export.ts`) és az
- * `apps/api` (`/api/ask` route) is használ — csak akkor generál és ment
- * Excel árajánlatot, ha a request-classifier explicit export-szándékot
+ * Közös segédfüggvény az `apps/api` egységes chat-route-jának — csak akkor
+ * generál és ment dokumentumot, ha a klasszifikáció explicit export-szándékot
  * észlelt (`wantsFileExport`), a válasz szövege önmagában sosem elég indok.
+ * A formátumot a hívó adja meg (`xlsx` katalógus-válaszhoz, `pdf`
+ * tudásbázis/web_search-válaszhoz — lásd `unified-agent.ts` `source` mezőjét).
  */
-export async function saveGeneratedQuote(
-  answer: string,
+export async function saveGeneratedDocument(
+  content: string,
+  format: DocumentFormat,
   wantsFileExport: boolean,
   config: QuoteDocumentConfig,
   outputDir = 'quotes',
@@ -23,12 +27,13 @@ export async function saveGeneratedQuote(
     return undefined
   }
 
-  const quote = await generateQuoteDocument(answer, config)
-  const fileBuffer = await downloadQuoteDocument(quote.fileId, config)
+  const generate = format === 'xlsx' ? generateQuoteDocument : generatePdfDocument
+  const doc = await generate(content, config)
+  const fileBuffer = await downloadQuoteDocument(doc.fileId, config)
 
   await mkdir(outputDir, { recursive: true })
-  const filePath = join(outputDir, quote.filename)
+  const filePath = join(outputDir, doc.filename)
   await writeFile(filePath, fileBuffer)
 
-  return { filename: quote.filename, filePath }
+  return { filename: doc.filename, filePath }
 }

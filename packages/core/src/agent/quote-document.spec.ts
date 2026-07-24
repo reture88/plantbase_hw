@@ -15,7 +15,7 @@ vi.mock('@ai-sdk/anthropic', async (importOriginal) => {
 
 vi.stubGlobal('fetch', fetchMock)
 
-const { generateQuoteDocument, downloadQuoteDocument } = await import('./quote-document')
+const { generateQuoteDocument, generatePdfDocument, downloadQuoteDocument } = await import('./quote-document')
 
 beforeEach(() => {
   doGenerateMock.mockReset()
@@ -108,6 +108,31 @@ describe('generateQuoteDocument', () => {
       generateQuoteDocument('Aloe vera x2', { apiKey: 'test-key', model: 'claude-test' }),
     ).rejects.toThrow('finishReason: length')
   })
+})
+
+describe('generatePdfDocument', () => {
+  it('should request the pdf skill and extract the generated file id and filename', async () => {
+    doGenerateMock.mockResolvedValueOnce(codeExecutionResultResponse('file_pdf123'))
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ filename: 'valasz.pdf' }),
+    })
+
+    const result = await generatePdfDocument('Az aloe verát ritkán kell öntözni.', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+    })
+
+    expect(result).toEqual({ fileId: 'file_pdf123', filename: 'valasz.pdf' })
+
+    const requestArgs = doGenerateMock.mock.calls[0][0] as {
+      providerOptions?: { anthropic?: { container?: { skills?: unknown[] } } }
+    }
+    expect(requestArgs.providerOptions?.anthropic?.container?.skills).toEqual([
+      { type: 'anthropic', skillId: 'pdf', version: 'latest' },
+    ])
+  })
+
 })
 
 describe('downloadQuoteDocument', () => {

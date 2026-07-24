@@ -59,8 +59,16 @@ function filesApiHeaders(apiKey: string): Record<string, string> {
   }
 }
 
-export async function generateQuoteDocument(
-  recommendationText: string,
+/**
+ * Közös alap a Skills + code_execution mechanizmuson keresztüli
+ * dokumentum-generáláshoz — az xlsx (`generateQuoteDocument`) és a pdf
+ * (`generatePdfDocument`) export is ugyanezt hívja, csak eltérő prompttal
+ * és `skillId`-vel (mindkettő Anthropic hivatalos Agent Skill, lásd
+ * anthropics/skills repo: `xlsx`, `pdf`).
+ */
+async function generateDocumentViaSkill(
+  prompt: string,
+  skillId: 'xlsx' | 'pdf',
   config: QuoteDocumentConfig,
 ): Promise<QuoteDocumentResult> {
   const model = createAnthropic({ apiKey: config.apiKey })(config.model)
@@ -68,13 +76,13 @@ export async function generateQuoteDocument(
   const result = await generateText({
     model,
     maxOutputTokens: QUOTE_MAX_TOKENS,
-    prompt: `Készíts egy formázott, magyar nyelvű Excel árajánlatot (.xlsx fájl) az alábbi növény-ajánlás alapján. A táblázat tartalmazzon tételes listát (növény neve, mennyiség, egységár Ft, részösszeg Ft) és egy végösszeg sort.\n\nAjánlás:\n${recommendationText}`,
+    prompt,
     tools: { code_execution: anthropic.tools.codeExecution_20260120() },
     stopWhen: isStepCount(QUOTE_MAX_STEPS),
     providerOptions: {
       anthropic: {
         container: {
-          skills: [{ type: 'anthropic', skillId: 'xlsx', version: 'latest' }],
+          skills: [{ type: 'anthropic', skillId, version: 'latest' }],
         },
       } satisfies AnthropicLanguageModelOptions,
     },
@@ -83,7 +91,7 @@ export async function generateQuoteDocument(
   const fileId = findGeneratedFileId(result.toolResults)
   if (!fileId) {
     throw new Error(
-      `Nem sikerült árajánlat-dokumentumot generálni: nem érkezett fájl a válaszban (finishReason: ${result.finishReason}).`,
+      `Nem sikerült dokumentumot generálni: nem érkezett fájl a válaszban (finishReason: ${result.finishReason}).`,
     )
   }
 
@@ -95,7 +103,20 @@ export async function generateQuoteDocument(
   }
   const metadata = (await metadataResponse.json()) as { filename?: string }
 
-  return { fileId, filename: metadata.filename ?? `arajanlat-${fileId}.xlsx` }
+  return { fileId, filename: metadata.filename ?? `dokumentum-${fileId}.${skillId}` }
+}
+
+export async function generateQuoteDocument(
+  recommendationText: string,
+  config: QuoteDocumentConfig,
+): Promise<QuoteDocumentResult> {
+  const prompt = `Készíts egy formázott, magyar nyelvű Excel árajánlatot (.xlsx fájl) az alábbi növény-ajánlás alapján. A táblázat tartalmazzon tételes listát (növény neve, mennyiség, egységár Ft, részösszeg Ft) és egy végösszeg sort.\n\nAjánlás:\n${recommendationText}`
+  return generateDocumentViaSkill(prompt, 'xlsx', config)
+}
+
+export async function generatePdfDocument(content: string, config: QuoteDocumentConfig): Promise<QuoteDocumentResult> {
+  const prompt = `Készíts egy jól formázott, magyar nyelvű PDF dokumentumot az alábbi növényápolási válasz alapján. Legyen benne cím, jól tagolt bekezdések, és ha a válasz forrásokra hivatkozik, azok listázva a dokumentum végén.\n\nVálasz:\n${content}`
+  return generateDocumentViaSkill(prompt, 'pdf', config)
 }
 
 export async function downloadQuoteDocument(fileId: string, config: QuoteDocumentConfig): Promise<Buffer> {
