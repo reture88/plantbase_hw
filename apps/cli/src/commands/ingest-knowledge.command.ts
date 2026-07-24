@@ -2,7 +2,6 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createKnowledgeIngestionPipeline, createWritePool, pruneRemovedDocuments } from '@plantbase/core'
 import type { Command } from 'commander'
-import type { AgentConfig } from '../config/agent-config'
 import { loadOpenAiApiKeyFromEnv, loadWritableDatabaseUrlFromEnv } from '../config/agent-config'
 
 const KNOWLEDGE_DIR = 'seed/knowledge'
@@ -13,7 +12,7 @@ const KNOWLEDGE_DIR = 'seed/knowledge'
  * erre a két env-változóra, és a program indulásának nem szabad rajtuk
  * elhasalnia, ha valaki csak katalógus-kérdést tesz fel.
  */
-export function registerIngestKnowledgeCommand(program: Command, agentConfig: AgentConfig): void {
+export function registerIngestKnowledgeCommand(program: Command): void {
   program
     .command('ingest-knowledge')
     .description('A seed/knowledge/*.md növényápolási cikkek chunkolása, embeddelése és a tudásbázisba töltése')
@@ -23,8 +22,6 @@ export function registerIngestKnowledgeCommand(program: Command, agentConfig: Ag
 
       try {
         const pipeline = createKnowledgeIngestionPipeline({
-          anthropicApiKey: agentConfig.apiKey,
-          anthropicModel: agentConfig.model,
           openaiApiKey: loadOpenAiApiKeyFromEnv(),
           pool,
         })

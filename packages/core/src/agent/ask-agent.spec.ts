@@ -24,7 +24,7 @@ beforeEach(() => {
   doStreamMock.mockReset()
   classifyRequestMock.mockReset()
   classifyRequestMock.mockResolvedValue({
-    isPlantRelated: true,
+    intent: 'catalog',
     wantsFileExport: false,
     usage: { inputTokens: 0, outputTokens: 0 },
   })
@@ -130,12 +130,12 @@ describe('askAgent', () => {
     expect((logger.entries[0] as { toolCalls: unknown[] }).toolCalls).toHaveLength(1)
 
     const requestArgs = doStreamMock.mock.calls[0][0] as { tools?: { name: string }[] }
-    expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories', 'web_search'])
+    expect(requestArgs.tools?.map((tool) => tool.name)).toEqual(['runSql', 'listCategories'])
   })
 
-  it('should not offer web_search when the classifier says the question is not plant-related', async () => {
+  it('never offers web_search, regardless of what the classifier returns — that is now the unified orchestrator/fallback-agent job', async () => {
     classifyRequestMock.mockResolvedValueOnce({
-      isPlantRelated: false,
+      intent: 'catalog',
       wantsFileExport: false,
       usage: { inputTokens: 5, outputTokens: 3 },
     })
@@ -156,9 +156,26 @@ describe('askAgent', () => {
     expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 9, totalTokens: 24 })
   })
 
+  it('skips its own classification call when a pre-computed classification is provided (unified orchestrator use)', async () => {
+    const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
+    const logger = createFakeLogger()
+    doStreamMock.mockResolvedValueOnce(textStreamResponse('Van kaktuszunk 3500 Ft-ért.', 10, 6))
+
+    const result = await askAgent('Van kaktusz?', {
+      apiKey: 'test-key',
+      model: 'claude-test',
+      logger,
+      runSqlPool: fakePool,
+      classification: { intent: 'catalog', wantsFileExport: true, usage: { inputTokens: 0, outputTokens: 0 } },
+    })
+
+    expect(classifyRequestMock).not.toHaveBeenCalled()
+    expect(result.wantsFileExport).toBe(true)
+  })
+
   it('should surface wantsFileExport from the classifier so the CLI can decide to save a document', async () => {
     classifyRequestMock.mockResolvedValueOnce({
-      isPlantRelated: true,
+      intent: 'catalog',
       wantsFileExport: true,
       usage: { inputTokens: 0, outputTokens: 0 },
     })
@@ -175,51 +192,6 @@ describe('askAgent', () => {
     })
 
     expect(result.wantsFileExport).toBe(true)
-  })
-
-  it('should use the web_search tool result (already resolved server-side) to produce the final answer', async () => {
-    // A web_search egy provider-executed tool: Anthropic szerver-oldalán fut le, a
-    // tool-call ÉS a tool-result is ugyanabban a modell-válaszban érkezik vissza,
-    // a végleges szöveges válasszal együtt — nincs kliens-oldali execute-lépés.
-    const fakePool = { query: vi.fn() } as unknown as import('pg').Pool
-    const logger = createFakeLogger()
-
-    doStreamMock.mockResolvedValueOnce({
-      stream: simulateReadableStream({
-        chunks: [
-          { type: 'stream-start' as const, warnings: [] },
-          {
-            type: 'tool-call' as const,
-            toolCallId: 'srv_1',
-            toolName: 'web_search',
-            input: JSON.stringify({ query: 'pozsgás gondozása télen' }),
-            providerExecuted: true,
-          },
-          {
-            type: 'tool-result' as const,
-            toolCallId: 'srv_1',
-            toolName: 'web_search',
-            result: [{ type: 'web_search_result', url: 'https://example.com', title: 'Pozsgások télen', pageAge: null }],
-            providerExecuted: true,
-          },
-          { type: 'text-start' as const, id: '1' },
-          { type: 'text-delta' as const, id: '1', delta: 'Télen ritkábban öntözd, fényes helyre tedd.' },
-          { type: 'text-end' as const, id: '1' },
-          { type: 'finish' as const, finishReason: { unified: 'stop' as const, raw: undefined }, usage: usagePart(30, 15) },
-        ],
-      }),
-    })
-
-    const result = await askAgent('hogyan gondozzam a pozsgásaimat télen?', {
-      apiKey: 'test-key',
-      model: 'claude-test',
-      logger,
-      runSqlPool: fakePool,
-    })
-
-    expect(doStreamMock).toHaveBeenCalledTimes(1)
-    expect(result.answer).toBe('Télen ritkábban öntözd, fényes helyre tedd.')
-    expect(result.usage).toEqual({ inputTokens: 30, outputTokens: 15, totalTokens: 45 })
   })
 
   it('should run the listCategories tool and feed the result back for a final answer', async () => {

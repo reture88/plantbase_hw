@@ -6,18 +6,23 @@ const CLASSIFIER_MAX_TOKENS = 20
 const CLASSIFIER_SYSTEM_PROMPT = `
 Egy növény-webshop AI asszisztense elé érkező felhasználói üzenetet szűrsz elő. KIZÁRÓLAG az alábbi két sorral válaszolj, semmi mást ne írj:
 
-NÖVÉNY: IGEN vagy NÖVÉNY: NEM — a kérdés egy konkrét növényhez, annak gondozásához, kiválasztásához vagy a növény-katalógushoz kapcsolódik-e (ideértve az általános növényápolási tanácsokat is)?
-EXPORT: IGEN vagy EXPORT: NEM — a felhasználó kifejezetten kérte-e, hogy a választ/listát mentsd el fájlba, Excelbe, táblázatba, vagy exportáld valamilyen formában? (Önmagában a lista/összehasonlítás kérése NEM elég — konkrét fájlba mentési/exportálási szándéknak is szerepelnie kell.)
+SZANDEK: KATALOGUS vagy TUDASBAZIS — a kérdés konkrét termékadatra vonatkozik-e (ár, készlet, kategória, egy adott növény elérhetősége a boltban) [KATALOGUS], vagy általános növényápolási/egyéb, a katalógustól független információra [TUDASBAZIS]?
+EXPORT: IGEN vagy NEM — a felhasználó kifejezetten kérte-e, hogy a választ/listát mentsd el fájlba, exportáld valamilyen formában? (Önmagában a lista/összehasonlítás kérése NEM elég — konkrét fájlba mentési/exportálási szándéknak is szerepelnie kell.)
 `.trim()
 
 export type RequestClassification = {
-  isPlantRelated: boolean
+  intent: 'catalog' | 'knowledge_base'
   wantsFileExport: boolean
   usage: { inputTokens: number; outputTokens: number }
 }
 
-function parseAnswer(text: string, label: string): boolean {
-  const match = new RegExp(`${label}\\s*:\\s*(IGEN|NEM)`, 'i').exec(text)
+function parseIntent(text: string): RequestClassification['intent'] {
+  const match = /SZANDEK\s*:\s*(KATALOGUS|TUDASBAZIS)/i.exec(text)
+  return match?.[1].toUpperCase() === 'TUDASBAZIS' ? 'knowledge_base' : 'catalog'
+}
+
+function parseExport(text: string): boolean {
+  const match = /EXPORT\s*:\s*(IGEN|NEM)/i.exec(text)
   return match?.[1].toUpperCase() === 'IGEN'
 }
 
@@ -27,10 +32,11 @@ export type ClassifierConfig = {
 }
 
 /**
- * Előszűrés a fő tool-use loop előtt: eldönti, hogy a kérdés növény-témájú-e
- * (ez kapuzza, hogy a web_search tool egyáltalán felajánlásra kerüljön-e), és
- * hogy a felhasználó kért-e explicit fájl-exportot. Hiba esetén "fail closed":
- * sem web_search, sem fájl-export nem indul.
+ * Előszűrés a fő válaszadás előtt: eldönti, hogy a kérdés konkrét
+ * katalógusadatra vonatkozik-e (runSql-ág) vagy általános növényápolási
+ * infóra (tudásbázis-ág), és hogy a felhasználó kért-e explicit
+ * fájl-exportot. Hiba esetén "fail closed": `intent: 'catalog'` (nincs
+ * web_search-fallback ezen az ágon) és `wantsFileExport: false`.
  */
 export async function classifyRequest(question: string, config: ClassifierConfig): Promise<RequestClassification> {
   try {
@@ -43,11 +49,11 @@ export async function classifyRequest(question: string, config: ClassifierConfig
     })
 
     return {
-      isPlantRelated: parseAnswer(result.text, 'NÖVÉNY'),
-      wantsFileExport: parseAnswer(result.text, 'EXPORT'),
+      intent: parseIntent(result.text),
+      wantsFileExport: parseExport(result.text),
       usage: { inputTokens: result.usage.inputTokens ?? 0, outputTokens: result.usage.outputTokens ?? 0 },
     }
   } catch {
-    return { isPlantRelated: false, wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } }
+    return { intent: 'catalog', wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } }
   }
 }

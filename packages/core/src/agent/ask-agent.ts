@@ -8,7 +8,6 @@ import { classifyRequest, type RequestClassification } from './request-classifie
 import { createRunSqlTool, RUN_SQL_TOOL_NAME } from './run-sql-tool'
 import { SQL_AGENT_SYSTEM_PROMPT } from './schema-context'
 import { SIMPLE_SYSTEM_PROMPT } from './simple-system-prompt'
-import { WEB_SEARCH_TOOL_NAME, webSearchTool } from './web-search-tool'
 
 const QuestionSchema = z.string().min(1, 'A kérdés nem lehet üres.')
 
@@ -27,6 +26,13 @@ export type AskAgentConfig = {
   logger?: JsonlLogger
   /** Ha meg van adva, a runSql/listCategories tool bekapcsol és a teljes SQL-agent system prompt aktiválódik. */
   runSqlPool?: Pool
+  /**
+   * Ha az egységes chat-orchestrátor (`unified-agent.ts`) már lefuttatta a
+   * klasszifikációt (intent + wantsFileExport), azt ideadva `askAgent` nem
+   * hívja meg még egyszer feleslegesen — a CLI-hívásoknál ez üres marad, ott
+   * `askAgent` maga végzi el a klasszifikációt, mint eddig.
+   */
+  classification?: RequestClassification
 }
 
 export type AskAgentResult = {
@@ -68,19 +74,20 @@ async function beginAskAgentTurn(question: string, config: AskAgentConfig) {
   const useSqlAgent = Boolean(config.runSqlPool)
   const systemPrompt = useSqlAgent ? SQL_AGENT_SYSTEM_PROMPT : SIMPLE_SYSTEM_PROMPT
 
-  // Előszűrés a fő tool-use hívás előtt: dönti el, hogy a web_search tool egyáltalán
-  // felajánlásra kerüljön-e (csak növény-témájú kérdésnél), és hogy a
-  // felhasználó kért-e explicit fájl-exportot. Lásd docs/architektura.md.
-  const classification: RequestClassification = config.runSqlPool
-    ? await classifyRequest(parsedQuestion, { apiKey: config.apiKey, model: config.model })
-    : { isPlantRelated: false, wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } }
+  // Csak a wantsFileExport-hoz kell (a CLI ebből dönti el, hívjon-e exportot) —
+  // az intent-alapú útvonalválasztást az egységes chat-orchestrátor végzi, nem
+  // askAgent, ezért ha kapott már kész klasszifikációt, nem fut le újra.
+  const classification: RequestClassification =
+    config.classification ??
+    (config.runSqlPool
+      ? await classifyRequest(parsedQuestion, { apiKey: config.apiKey, model: config.model })
+      : { intent: 'catalog', wantsFileExport: false, usage: { inputTokens: 0, outputTokens: 0 } })
 
   const toolCalls: ToolCallLogEntry[] = []
   const tools: ToolSet | undefined = config.runSqlPool
     ? {
         [RUN_SQL_TOOL_NAME]: createRunSqlTool(config.runSqlPool, toolCalls),
         [LIST_CATEGORIES_TOOL_NAME]: createListCategoriesTool(config.runSqlPool, toolCalls),
-        ...(classification.isPlantRelated ? { [WEB_SEARCH_TOOL_NAME]: webSearchTool } : {}),
       }
     : undefined
 
@@ -154,7 +161,7 @@ async function finalizeAskAgentTurn(
       usage,
       durationMs: Date.now() - startedAt,
       error: errorMessage,
-      classification: { isPlantRelated: classification.isPlantRelated, wantsFileExport: classification.wantsFileExport },
+      classification: { intent: classification.intent, wantsFileExport: classification.wantsFileExport },
     })
   }
 }

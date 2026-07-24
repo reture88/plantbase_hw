@@ -1,17 +1,14 @@
-import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createHash } from 'node:crypto'
 import type { Pool } from 'pg'
 import { createEmbedder } from './embedding'
-import { EMBEDDING_MODEL_ID } from './embedding'
+import { EMBEDDING_MODEL_ID, HELPER_MODEL_ID } from './model-ids'
 import { getDocumentContentHash, upsertDocument } from './knowledge-repository'
 import { parseKnowledgeMarkdown } from './chunking'
 import { createSemanticChunkSplitter } from './semantic-chunk-splitter'
 import type { KnowledgeChunkInput } from './types'
 
 export type IngestConfig = {
-  anthropicApiKey: string
-  anthropicModel: string
   openaiApiKey: string
   pool: Pool
 }
@@ -27,16 +24,16 @@ export type KnowledgeIngestionPipeline = {
 }
 
 /**
- * A providerek (Anthropic a szemantikus chunk-elemzéshez, OpenAI az
- * embeddinghez) egyszer épülnek fel, a hívó (`ingest-knowledge` CLI-parancs)
- * ezt a lezárást (closure) használja minden `seed/knowledge/*.md` fájlra —
- * ugyanaz a felépítés-egyszer-hívás-sokszor minta, mint `createEmbedder`/
- * `createReranker` esetén.
+ * Az OpenAI provider (a szemantikus chunk-elemzéshez ÉS az embeddinghez is)
+ * egyszer épül fel, a hívó (`ingest-knowledge` CLI-parancs) ezt a lezárást
+ * (closure) használja minden `seed/knowledge/*.md` fájlra — ugyanaz a
+ * felépítés-egyszer-hívás-sokszor minta, mint `createEmbedder`/`createReranker`
+ * esetén. A szemantikus split olcsóbb `HELPER_MODEL_ID`-t (gpt-5.4-mini) kap,
+ * nem Claude Haiku-t — ezért az ingestionnak innentől nincs Anthropic-függése.
  */
 export function createKnowledgeIngestionPipeline(config: IngestConfig): KnowledgeIngestionPipeline {
-  const anthropic = createAnthropic({ apiKey: config.anthropicApiKey })
-  const splitParagraph = createSemanticChunkSplitter(anthropic(config.anthropicModel))
   const openai = createOpenAI({ apiKey: config.openaiApiKey })
+  const splitParagraph = createSemanticChunkSplitter(openai(HELPER_MODEL_ID))
   const embed = createEmbedder(openai.textEmbeddingModel(EMBEDDING_MODEL_ID))
 
   return {

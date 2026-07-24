@@ -33,6 +33,8 @@ export type AskRagConfig = {
   anthropicModel: string
   openaiApiKey: string
   embeddingModel: string
+  /** Olcsó "helper" modell a rerankhez (a HyDE tudatosan `anthropicModel`-t használja, nem ezt). */
+  helperModel: string
   pool: Pool
   logger?: RagJsonlLogger
 }
@@ -60,10 +62,13 @@ async function retrieveRerankedChunks(parsedQuestion: string, config: AskRagConf
   const model = anthropic(config.anthropicModel)
   const openai = createOpenAI({ apiKey: config.openaiApiKey })
   const embeddingModel = openai.textEmbeddingModel(config.embeddingModel)
+  const helperModel = openai(config.helperModel)
 
+  // A HyDE (hipotetikus válasz generálása) tudatosan Claude Haiku-n marad —
+  // csak a rerank (ítéleti/relevancia-döntés) került át az olcsóbb helper-modellre.
   const generateHyde = createHydeGenerator(model)
   const embed = createEmbedder(embeddingModel)
-  const rerank = createReranker(model, RERANK_TOP_K)
+  const rerank = createReranker(helperModel, RERANK_TOP_K)
 
   const hypotheticalAnswer = await generateHyde(parsedQuestion)
   const [hypotheticalEmbedding] = await embed([hypotheticalAnswer])

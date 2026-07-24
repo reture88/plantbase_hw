@@ -16,7 +16,7 @@ const logger = createJsonlLogger()
 const runSqlPool = createReadonlyPool(loadReadonlyDatabaseUrlFromEnv())
 
 registerAskCommand(program, agentConfig, logger, runSqlPool)
-registerIngestKnowledgeCommand(program, agentConfig)
+registerIngestKnowledgeCommand(program)
 
 if (process.argv.length <= 2) {
   startInteractiveLoop(agentConfig, logger, runSqlPool)

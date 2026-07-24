@@ -1,15 +1,5 @@
 import { embedMany, type EmbeddingModel } from 'ai'
 
-export const EMBEDDING_DIMENSIONS = 1536
-
-/**
- * A `KnowledgeChunk.embedding` DB-oszlop `vector(1536)`-ként van definiálva
- * (lásd packages/db/prisma/schema.prisma) — ez az embedding-modell ezért
- * NEM env-ből konfigurálható szabadon, mert egy eltérő dimenziójú modell
- * megtörné a séma és a ténylegesen beírt vektorok egyezését.
- */
-export const EMBEDDING_MODEL_ID = 'text-embedding-3-small'
-
 /** Egy OpenAI-hívásban max ennyi szöveget embeddelünk egyszerre — a provider limitje alatt marad. */
 const EMBED_BATCH_SIZE = 100
 

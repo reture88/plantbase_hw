@@ -8,14 +8,12 @@ const mockEmbeddingModel = new MockEmbeddingModelV4({ maxEmbeddingsPerCall: 10, 
 const getDocumentContentHashMock = vi.fn()
 const upsertDocumentMock = vi.fn()
 
-vi.mock('@ai-sdk/anthropic', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@ai-sdk/anthropic')>()
-  return { ...actual, createAnthropic: () => () => mockLanguageModel }
-})
-
 vi.mock('@ai-sdk/openai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@ai-sdk/openai')>()
-  return { ...actual, createOpenAI: () => ({ textEmbeddingModel: () => mockEmbeddingModel }) }
+  return {
+    ...actual,
+    createOpenAI: () => Object.assign(() => mockLanguageModel, { textEmbeddingModel: () => mockEmbeddingModel }),
+  }
 })
 
 vi.mock('./knowledge-repository', () => ({
@@ -45,7 +43,7 @@ category: plants-101
 A kardliliom tűri a gyenge fényt is, de gyorsabban nő fényesebb helyen.
 `
 
-const config = { anthropicApiKey: 'a', anthropicModel: 'claude-test', openaiApiKey: 'o', pool: {} as never }
+const config = { openaiApiKey: 'o', pool: {} as never }
 
 beforeEach(() => {
   doGenerateMock.mockReset()
