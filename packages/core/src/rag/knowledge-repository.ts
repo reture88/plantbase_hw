@@ -95,16 +95,32 @@ export async function upsertDocument(pool: Pool, doc: DocumentToUpsert, embeddin
  * (cascade a chunkjaikat is) — nincs "árva" tudásbázis-tartalom. A törölt
  * slugokat adja vissza, hogy az ingestion-parancs kiírhassa őket.
  *
- * Védőellenőrzés: ha `keepSlugs` üres, a `!= ALL(...)` SQL-feltétel minden
- * sorra igaz lenne, tehát a teljes tudásbázist törölné — ez majdnem biztosan
- * egy hibás forráskönyvtár (pl. rossz `cwd`-ből futtatott `ingest-knowledge`)
- * jele, nem szándékos "töröld ki az egészet" utasítás, ezért ilyenkor nem
- * törlünk semmit.
+ * Védőellenőrzés (kétszeresen is): (1) ha `keepSlugs` üres, a `!= ALL(...)`
+ * SQL-feltétel minden sorra igaz lenne, tehát a teljes tudásbázist törölné —
+ * ez majdnem biztosan egy hibás forráskönyvtár jele, nem szándékos "töröld ki
+ * az egészet" utasítás. (2) Ha a `keepSlugs` a jelenlegi dokumentumoknak
+ * kevesebb mint a felét fedi le, az is majdnem biztosan hibás bemenet
+ * (rossz/hiányos slug-lista), nem valódi tömeges törlési szándék — ez a
+ * konkrét eset ténylegesen bekövetkezett: egy teszt egy kitalált, egyetlen
+ * elemű `keepSlugs`-szal hívta meg ezt a megosztott dev-adatbázison, és a
+ * teljes 202 dokumentumos tudásbázist törölte. Mindkét esetben `force: true`
+ * nélkül hibát dobunk ahelyett, hogy csendben törölnénk.
  */
-export async function pruneRemovedDocuments(pool: Pool, keepSlugs: string[]): Promise<string[]> {
+export async function pruneRemovedDocuments(pool: Pool, keepSlugs: string[], force = false): Promise<string[]> {
   if (keepSlugs.length === 0) {
     return []
   }
+
+  if (!force) {
+    const totalResult = await pool.query<{ count: string }>('SELECT count(*) FROM knowledge_documents')
+    const total = Number(totalResult.rows[0].count)
+    if (total > 0 && keepSlugs.length < total / 2) {
+      throw new Error(
+        `pruneRemovedDocuments: a keepSlugs (${keepSlugs.length} elem) a jelenlegi ${total} dokumentumnak kevesebb mint a felét fedi le — ez gyanúsan hibás bemenetre utal, nem valódi tömeges törlési szándékra. Ha ez tényleg szándékos, hívd meg force: true-val.`,
+      )
+    }
+  }
+
   const result = await pool.query<{ slug: string }>('DELETE FROM knowledge_documents WHERE slug != ALL($1) RETURNING slug', [keepSlugs])
   return result.rows.map((r) => r.slug)
 }

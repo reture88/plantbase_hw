@@ -29,8 +29,10 @@ describeIfDb('knowledge-repository (integration, real Postgres + pgvector)', () 
   const readPool = createReadonlyPool(readConnectionString as string)
   const slug = 'integration-test-doc'
 
+  const keepAnchorSlug = 'integration-test-doc-keep-anchor'
+
   afterEach(async () => {
-    await writePool.query('DELETE FROM knowledge_documents WHERE slug = $1', [slug])
+    await writePool.query('DELETE FROM knowledge_documents WHERE slug = ANY($1)', [[slug, keepAnchorSlug]])
   })
 
   afterAll(async () => {
@@ -76,10 +78,27 @@ describeIfDb('knowledge-repository (integration, real Postgres + pgvector)', () 
 
   it('deletes documents (and cascades their chunks) that are no longer among the kept slugs', async () => {
     await upsertDocument(writePool, { slug, title: 'Teszt cím', source: 'https://example.com/teszt', category: 'teszt', contentHash: 'hash-1', chunks: [chunk(0, 'törlendő tartalom')] }, [fakeEmbedding(3)])
+    // Külön "anchor" dokumentum, amit MINDIG megtartunk — ez biztosítja, hogy a
+    // `keepSlugs` sose legyen (majdnem) üres, függetlenül attól, hogy a
+    // megosztott dev DB-ben van-e éppen más (pl. a seed/knowledge ingestion
+    // eredménye) valódi tartalom.
+    await upsertDocument(writePool, { slug: keepAnchorSlug, title: 'Anchor', source: 'https://example.com/anchor', category: 'teszt', contentHash: 'anchor-hash', chunks: [chunk(0, 'megtartandó anchor tartalom')] }, [fakeEmbedding(7)])
 
-    const removed = await pruneRemovedDocuments(writePool, ['some-other-slug'])
+    // KRITIKUS: ez a teszt egy MEGOSZTOTT, valódi dev DB-n fut (nem egy izolált
+    // teszt-adatbázison) — a `pruneRemovedDocuments` mindent töröl, ami NINCS a
+    // `keepSlugs`-ban. Ha itt egy kitalált, egyetlen slugot adnánk meg (pl.
+    // 'some-other-slug'), az a teszt-dokumentumon KÍVÜL a teljes valós
+    // tudásbázist (seed/knowledge ingestion eredményét) is kitörölné — ez
+    // ténylegesen megtörtént fejlesztés közben. Ezért mindig a jelenleg
+    // ténylegesen létező (a teszt-slugon kívüli) slugokat kérdezzük le, és
+    // azokat adjuk meg megtartandóként.
+    const existingSlugs = await writePool.query<{ slug: string }>('SELECT slug FROM knowledge_documents WHERE slug != $1', [slug])
+    const keepSlugs = existingSlugs.rows.map((r) => r.slug)
+
+    const removed = await pruneRemovedDocuments(writePool, keepSlugs)
 
     expect(removed).toContain(slug)
+    expect(removed).not.toContain(keepAnchorSlug)
     const hash = await getDocumentContentHash(writePool, slug)
     expect(hash).toBeNull()
     const chunkCount = await writePool.query('SELECT count(*) FROM knowledge_chunks WHERE "documentId" = (SELECT id FROM knowledge_documents WHERE slug = $1)', [slug])
