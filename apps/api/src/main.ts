@@ -4,9 +4,8 @@ import cors from '@fastify/cors'
 import { createJsonlLogger, createRagJsonlLogger, createReadonlyPool } from '@plantbase/core'
 import Fastify from 'fastify'
 import { loadApiEnvFromEnv } from './config/env'
-import { registerAskRoute } from './routes/ask.route'
+import { registerChatRoute } from './routes/chat.route'
 import { registerQuotesRoute } from './routes/quotes.route'
-import { registerRagChatRoute } from './routes/rag-chat.route'
 
 async function main(): Promise<void> {
   const env = loadApiEnvFromEnv()
@@ -14,12 +13,12 @@ async function main(): Promise<void> {
 
   await app.register(cors, { origin: env.corsOrigin })
 
-  const askLogger = createJsonlLogger()
+  const logger = createJsonlLogger()
   const ragLogger = createRagJsonlLogger()
-  const runSqlPool = createReadonlyPool(env.databaseUrlReadonly)
+  // Egyetlen readonly pool — ezen fut a runSql/listCategories ÉS a RAG vektor-keresés is.
+  const pool = createReadonlyPool(env.databaseUrlReadonly)
 
-  registerAskRoute(app, env, askLogger, runSqlPool)
-  registerRagChatRoute(app, env, ragLogger)
+  registerChatRoute(app, env, pool, logger, ragLogger)
   registerQuotesRoute(app)
 
   app.get('/health', async () => ({ status: 'ok' }))
