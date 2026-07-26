@@ -44,5 +44,6 @@
         "testMode": "watch"
       }
     }
-  ]
+  ],
+  "analytics": true
 }
