@@ -115,7 +115,18 @@ export async function generateQuoteDocument(
 }
 
 export async function generatePdfDocument(content: string, config: QuoteDocumentConfig): Promise<QuoteDocumentResult> {
-  const prompt = `Készíts egy jól formázott, magyar nyelvű PDF dokumentumot az alábbi növényápolási válasz alapján. Legyen benne cím, jól tagolt bekezdések, és ha a válasz forrásokra hivatkozik, azok listázva a dokumentum végén.\n\nVálasz:\n${content}`
+  // A ReportLab beépített (base-14) betűtípusai a WinAnsi kódlapot használják,
+  // ami NEM tartalmazza a magyar hosszú ékezetes ő/ű karaktereket (U+0151,
+  // U+0170) — ezek nélkül a szöveg üres négyzetként vagy hibásan jelenik meg.
+  // Explicit kérünk egy teljes Unicode-lefedettségű TrueType fontot (pl.
+  // DejaVu Sans), amit a ReportLab `pdfmetrics.registerFont` + `TTFont`-tal
+  // regisztrálni tud, hogy a magyar ékezetes karakterek helyesen jelenjenek meg.
+  const prompt = `Készíts egy jól formázott, magyar nyelvű PDF dokumentumot az alábbi növényápolási válasz alapján. Legyen benne cím, jól tagolt bekezdések, és ha a válasz forrásokra hivatkozik, azok listázva a dokumentum végén.
+
+FONTOS — magyar ékezetes karakterek (különösen ő, ű, de a többi is: á, é, í, ó, ö, ú, ü): a ReportLab beépített alapértelmezett betűtípusai (Helvetica, Times stb.) NEM tartalmazzák ezeket a karaktereket, üres négyzetként vagy hibásan jelennének meg. Ezért NE használd az alapértelmezett fontokat — regisztrálj egy teljes Unicode-lefedettségű TrueType fontot (pl. DejaVu Sans, ami elérhető a rendszeren) a "pdfmetrics.registerFont" és "TTFont" segítségével, és azt használd a dokumentum teljes szövegéhez. Generálás után ellenőrizd, hogy az "ő" és "ű" karakterek ténylegesen helyesen jelennek-e meg.
+
+Válasz:
+${content}`
   return generateDocumentViaSkill(prompt, 'pdf', config)
 }
 
