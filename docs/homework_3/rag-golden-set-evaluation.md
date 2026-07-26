@@ -1,6 +1,6 @@
 # RAG Golden Set — kiértékelés: nyers vektorkeresés vs. teljes pipeline (HyDE + rerank)
 
-> Ez a dokumentum bizonyítja, hogy a RAG-pipeline (HyDE + rerank) ténylegesen csinál valamit — nem csak extra API-költség egy amúgy is működő vektorkereséshez képest. A script: `scripts/golden-set-eval.ts` (`npx tsx scripts/golden-set-eval.ts`), valódi API-hívásokkal a teljes (202 dokumentum, 5414 chunk) tudásbázis ellen. A nyers kimenet reprodukálható a script újrafuttatásával.
+> Ez a dokumentum bizonyítja, hogy a RAG-pipeline (HyDE + rerank) ténylegesen csinál valamit — nem csak extra API-költség egy amúgy is működő vektorkereséshez képest. A script: `scripts/golden-set-eval.ts` (`npx tsx scripts/golden-set-eval.ts`), valódi API-hívásokkal a teljes (a kiértékelés idején 202 dokumentum, 5414 chunk) tudásbázis ellen. A nyers kimenet reprodukálható a script újrafuttatásával. (A tudásbázis mérete azóta enyhén változott, jelenleg 202 dokumentum / 5342 chunk — a `seed/knowledge/` néhány cikke újra lett ingestálva; ez a kvalitatív következtetéseket nem érinti.)
 
 ## Módszertan
 

@@ -247,4 +247,4 @@ A user három nagyobb, egymásra épülő kérést adott ezen a napon:
 - `pruneRemovedDocuments` üres `keepSlugs`-ra a teljes tudásbázist törölte (`slug != ALL(üres tömb)` minden sorra igaz) — ez ténylegesen bekövetkezett fejlesztés közben (202 dokumentum/5623 chunk elveszett), a golden-set kiértékelés közben derült ki. Javítás: explicit guard, ha `keepSlugs` üres, nem törlünk semmit. Az ingestion újra lefutott.
 - Egy scrapelt cikk feldolgozása közben `"invalid byte sequence for encoding UTF8: 0x00"` hibával elszállt a teljes ingestion — egy NUL byte került valahogy a chunk-tartalomba. Javítás: minden szöveges mező NUL byte-mentesítve közvetlenül a DB-be írás előtt (`upsertDocument`).
 
-Dokumentáció frissítve: `docs/architektura.md` (8-12. pont), `docs/stack.md`, `docs/rag-knowledge-base-maintenance.md`, `docs/ddd/` (`ddd-audit` skill-lel), `docs/rag-golden-set-evaluation.md` (új).
+Dokumentáció frissítve: `docs/architektura.md` (8-12. pont), `docs/stack.md`, `docs/homework_3/rag-knowledge-base-maintenance.md`, `docs/ddd/` (`ddd-audit` skill-lel), `docs/homework_3/rag-golden-set-evaluation.md` (új).

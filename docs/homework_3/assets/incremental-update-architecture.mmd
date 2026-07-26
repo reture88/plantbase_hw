@@ -1,0 +1,50 @@
+flowchart TD
+    SRC["📄 Forrás<br/>seed/knowledge/*.md<br/>(frontmatter + törzsszöveg)"]
+
+    HASH{"🔍 Változásérzékelés<br/>SHA-256(raw) vs.<br/>tárolt contentHash?"}
+
+    SKIP["⏭️ Kihagyás<br/>nincs chunk/embed hívás<br/>(0 API-költség)"]
+
+    PARSE["✂️ Chunk — 1. lépés<br/>parseKnowledgeMarkdown<br/>(determinisztikus bekezdés-split,<br/>heading-tagging, boilerplate-vágás)"]
+
+    SEMANTIC["🧠 Chunk — 2. lépés<br/>semantic-chunk-splitter<br/>(gpt-5.4-mini, LLM sub-split<br/>többtémás bekezdéseknél)<br/>hiba esetén: eredeti bekezdés marad"]
+
+    EMBED["🔢 Embed<br/>text-embedding-3-small<br/>(1536 dim, batchelve)"]
+
+    TX["💾 Tárolás — 1 tranzakció<br/>upsertDocument<br/>régi chunkok törlése + új beszúrása"]
+
+    DB[("🗄️ Postgres + pgvector<br/>knowledge_documents<br/>knowledge_chunks<br/>(HNSW index, cosine)")]
+
+    SEEN["📋 seenSlugs<br/>(a mappában ténylegesen<br/>talált fájlok slugjai)"]
+
+    PRUNE{"🗑️ pruneRemovedDocuments<br/>DB-slug NINCS a<br/>seenSlugs-ban?"}
+
+    CASCADE["❌ Törlés (cascade)<br/>knowledge_documents sor +<br/>összes hozzá tartozó chunk"]
+
+    KEEP["✅ Megmarad<br/>nincs teendő"]
+
+    TRIGGER["⏱️ Trigger<br/>ma: manuális 'pnpm cli ingest-knowledge'<br/>terv: ütemezett job / CI-lépés / webhook<br/>(lásd rag-knowledge-base-maintenance.md)"]
+
+    TRIGGER --> SRC
+    SRC --> HASH
+    HASH -- "egyezik → nem változott" --> SKIP
+    HASH -- "eltér / új fájl" --> PARSE
+    PARSE --> SEMANTIC
+    SEMANTIC --> EMBED
+    EMBED --> TX
+    TX --> DB
+    SKIP -.-> SEEN
+    TX -.-> SEEN
+    SEEN --> PRUNE
+    DB -.-> PRUNE
+    PRUNE -- "igen (törölt fájl)" --> CASCADE
+    PRUNE -- "nem" --> KEEP
+    CASCADE --> DB
+    KEEP --> DB
+
+    style SRC fill:#e8f5e9,stroke:#2e7d32,color:#1b1b1b
+    style DB fill:#e3f2fd,stroke:#1565c0,color:#1b1b1b
+    style SKIP fill:#fff9c4,stroke:#f9a825,color:#1b1b1b
+    style CASCADE fill:#ffebee,stroke:#c62828,color:#1b1b1b
+    style KEEP fill:#e8f5e9,stroke:#2e7d32,color:#1b1b1b
+    style TRIGGER fill:#f3e5f5,stroke:#6a1b9a,color:#1b1b1b
