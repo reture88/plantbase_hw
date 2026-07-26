@@ -79,7 +79,7 @@ pnpm cli ask "van kaktusz 5000 Ft alatt? ha igen, a listát mentsd ki fileba"
 
 # Tudásbázis (re)indexelése — a seed/knowledge/ mappa aktuális tartalma alapján
 # szinkronizál: új/módosult fájl feldolgozva, változatlan kihagyva, törölt fájlhoz
-# tartozó dokumentum a DB-ből is törlődik. Lásd docs/rag-knowledge-base-maintenance.md.
+# tartozó dokumentum a DB-ből is törlődik. Lásd docs/homework_3/rag-knowledge-base-maintenance.md.
 pnpm cli ingest-knowledge
 ```
 
@@ -115,11 +115,15 @@ pnpm db:generate       # prisma generate (Prisma Client újragenerálása séma-
 pnpm db:studio         # Prisma Studio a DB böngészéséhez
 
 # Golden-set kiértékelés — RAG-pipeline minőségének ellenőrzése valódi API-hívásokkal
-# (nyers vektorkeresés vs. HyDE+rerank pipeline), lásd docs/rag-golden-set-evaluation.md
+# (nyers vektorkeresés vs. HyDE+rerank pipeline), lásd docs/homework_3/rag-golden-set-evaluation.md
 npx tsx scripts/golden-set-eval.ts
 ```
 
 Megjegyzés: a `core` csomag néhány integrációs tesztje (`*.integration.spec.ts`) valódi Postgres/OpenAI-kapcsolatot igényel — ha a `.env` hiányzik vagy hiányos, ezek automatikusan kimaradnak (`describe.skip`), a többi teszt attól függetlenül lefut.
+
+## Költségbecslés (RAG)
+
+Nagyságrendileg: a teljes tudásbázis (202 dokumentum, ~2950 chunk-split hívás) vektorizálása **~1,5–2 USD**; egy módosított/új cikk utólagos ingestje (a `contentHash`-alapú kihagyás miatt) **~1 cent**; egy tudásbázis-kérdés a teljes pipeline-nal (HyDE + embedding + rerank + grounded válasz) **~0,4 cent**, elutasítás esetén a `web_search`-fallbackkel együtt **~1,8 cent**; egy katalógus-kérdés (`runSql`) valós naplóadatok alapján **~0,9 cent**. Részletes levezetés, saját mért adatokkal és a felhasznált árakkal: [`docs/homework_3/rag-roi.md`](docs/homework_3/rag-roi.md).
 
 ## Dokumentáció
 
@@ -133,3 +137,8 @@ Megjegyzés: a `core` csomag néhány integrációs tesztje (`*.integration.spec
 | [`docs/system-prompt.md`](docs/system-prompt.md) | Az SQL-agent system promptja |
 | [`docs/roi.md`](docs/roi.md) | ROI-elemzés egy 5 fős iroda esetére |
 | [`docs/implementacios-terv.md`](docs/implementacios-terv.md) | Fázisolt implementációs terv + minden eltérés/döntés naplója |
+| [`docs/homework_3/chunking-strategy.md`](docs/homework_3/chunking-strategy.md) | Chunkolási stratégia és indoklása, tesztekkel |
+| [`docs/homework_3/rag-chat-pipeline.md`](docs/homework_3/rag-chat-pipeline.md) | A keresési pipeline (embedding, HyDE, rerank, grounding, multi-provider routing) |
+| [`docs/homework_3/rag-golden-set-evaluation.md`](docs/homework_3/rag-golden-set-evaluation.md) | Golden-set kiértékelés: nyers vektorkeresés vs. teljes pipeline |
+| [`docs/homework_3/rag-knowledge-base-maintenance.md`](docs/homework_3/rag-knowledge-base-maintenance.md) | Karbantartási architektúra-spec + inkrementális frissítés ábra |
+| [`docs/homework_3/rag-roi.md`](docs/homework_3/rag-roi.md) | Költségbecslés (ingestion + egy kérdés a teljes pipeline-nal) |
