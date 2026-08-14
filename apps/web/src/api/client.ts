@@ -1,10 +1,11 @@
-export type ChatSource = 'catalog' | 'knowledge_base' | 'web_search'
+export type ChatSource = 'catalog' | 'knowledge_base' | 'web_search' | 'escalated'
 
 export type ChatDone = {
   source: ChatSource
   sources?: { title: string; source: string }[]
   fileUrl?: string
   fileFormat?: 'xlsx' | 'pdf'
+  escalationId?: number
 }
 
 export type ChatCallbacks = {
@@ -15,11 +16,12 @@ export type ChatCallbacks = {
 type SseEvent =
   | { type: 'text-delta'; text: string }
   | { type: 'notice'; text: string }
+  | { type: 'escalated'; escalationId: number }
   | { type: 'error'; message: string }
   | ({ type: 'done' } & ChatDone)
 
-async function streamChatSse(question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
-  const response = await fetch('/api/chat', {
+async function streamChatSse(endpoint: string, question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question }),
@@ -54,10 +56,18 @@ async function streamChatSse(question: string, callbacks: ChatCallbacks): Promis
         callbacks.onDelta(event.text)
       } else if (event.type === 'notice') {
         callbacks.onNotice(event.text)
+      } else if (event.type === 'escalated') {
+        // Nincs külön kezelés itt — a `done` esemény úgyis hozza az escalationId-t.
       } else if (event.type === 'error') {
         throw new Error(event.message)
       } else if (event.type === 'done') {
-        doneEvent = { source: event.source, sources: event.sources, fileUrl: event.fileUrl, fileFormat: event.fileFormat }
+        doneEvent = {
+          source: event.source,
+          sources: event.sources,
+          fileUrl: event.fileUrl,
+          fileFormat: event.fileFormat,
+          escalationId: event.escalationId,
+        }
       }
     }
   }
@@ -69,5 +79,56 @@ async function streamChatSse(question: string, callbacks: ChatCallbacks): Promis
 }
 
 export function askUnified(question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
-  return streamChatSse(question, callbacks)
+  return streamChatSse('/api/chat', question, callbacks)
+}
+
+export function askCustomer(question: string, callbacks: ChatCallbacks): Promise<ChatDone> {
+  return streamChatSse('/api/customer/chat', question, callbacks)
+}
+
+export type EscalationStatus = { status: 'open' | 'resolved'; reply: string | null }
+
+export async function pollEscalation(escalationId: number): Promise<EscalationStatus> {
+  const response = await fetch(`/api/customer/escalations/${escalationId}`)
+  if (!response.ok) {
+    throw new Error(`Nem sikerült lekérdezni az eszkaláció státuszát (HTTP ${response.status}).`)
+  }
+  return (await response.json()) as EscalationStatus
+}
+
+export type OpenEscalation = {
+  id: number
+  question: string
+  contextSnapshot: string
+  reason: string
+  createdAt: string
+}
+
+async function internalFetch(path: string, internalToken: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(path, {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${internalToken}` },
+  })
+  if (response.status === 401) {
+    throw new Error('Érvénytelen belső token.')
+  }
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(errorBody.error ?? `A szerver hibát adott vissza (HTTP ${response.status}).`)
+  }
+  return response
+}
+
+export async function fetchOpenEscalations(internalToken: string): Promise<OpenEscalation[]> {
+  const response = await internalFetch('/api/internal/escalations', internalToken)
+  const body = (await response.json()) as { escalations: OpenEscalation[] }
+  return body.escalations
+}
+
+export async function resolveEscalationApi(internalToken: string, escalationId: number, reply: string): Promise<void> {
+  await internalFetch(`/api/internal/escalations/${escalationId}/resolve`, internalToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reply }),
+  })
 }

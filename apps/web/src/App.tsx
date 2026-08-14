@@ -15,6 +15,9 @@ export function App() {
           onSend={(question, onDelta, onNotice) => askUnified(question, { onDelta, onNotice })}
         />
       </main>
+      <p className="app-footer-links">
+        Ügyfélirányú demó: <a href="/customer">/customer</a> · Eszkalációs sor: <a href="/internal/escalations">/internal/escalations</a>
+      </p>
     </div>
   )
 }
