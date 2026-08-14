@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
-import { createEscalation, getEscalation, listOpenEscalations, resolveEscalation } from './escalation-repository'
+import { createEscalation, getEscalation, getEscalationByToken, listOpenEscalations, resolveEscalation } from './escalation-repository'
 
 function fakePool(queryImpl: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }>): Pool {
   return { query: vi.fn(queryImpl) } as unknown as Pool
@@ -11,6 +11,7 @@ const now = new Date('2026-08-14T12:00:00Z')
 function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
+    pollToken: 'abc123-fake-token',
     question: 'Mérgező-e a filodendron a macskámnak?',
     contextSnapshot: 'nincs releváns chunk a tudásbázisban',
     reason: 'nem grounded',
@@ -23,10 +24,12 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe('escalation-repository', () => {
-  it('creates an escalation and returns the inserted record', async () => {
-    const pool = fakePool(async (sql) => {
+  it('creates an escalation with a generated pollToken and returns the inserted record', async () => {
+    let capturedParams: unknown[] | undefined
+    const pool = fakePool(async (sql, params) => {
       expect(sql).toContain('INSERT INTO escalations')
-      return { rows: [row()] }
+      capturedParams = params
+      return { rows: [row({ pollToken: params?.[3] })] }
     })
 
     const result = await createEscalation(pool, {
@@ -35,16 +38,20 @@ describe('escalation-repository', () => {
       reason: 'nem grounded',
     })
 
-    expect(result).toEqual({
-      id: 1,
-      question: 'Mérgező-e a filodendron a macskámnak?',
-      contextSnapshot: 'nincs releváns chunk a tudásbázisban',
-      reason: 'nem grounded',
-      status: 'open',
-      reply: null,
-      createdAt: now,
-      resolvedAt: null,
-    })
+    // A tokent a repo generálja (nem a hívó adja) — legyen elég hosszú/random ahhoz, hogy ne legyen kitalálható.
+    const generatedToken = capturedParams?.[3] as string
+    expect(typeof generatedToken).toBe('string')
+    expect(generatedToken.length).toBeGreaterThanOrEqual(32)
+    expect(result.pollToken).toBe(generatedToken)
+  })
+
+  it('generates a different token on every call (not deterministic/guessable)', async () => {
+    const pool = fakePool(async (sql, params) => ({ rows: [row({ pollToken: params?.[3] })] }))
+
+    const a = await createEscalation(pool, { question: 'q1', contextSnapshot: 'c', reason: 'r' })
+    const b = await createEscalation(pool, { question: 'q2', contextSnapshot: 'c', reason: 'r' })
+
+    expect(a.pollToken).not.toBe(b.pollToken)
   })
 
   it('lists only open escalations, oldest first', async () => {
@@ -66,6 +73,18 @@ describe('escalation-repository', () => {
 
     const missingPool = fakePool(async () => ({ rows: [] }))
     expect(await getEscalation(missingPool, 999)).toBeNull()
+  })
+
+  it('returns a single escalation by pollToken, or null when not found', async () => {
+    const foundPool = fakePool(async (sql, params) => {
+      expect(sql).toContain('WHERE "pollToken" = $1')
+      expect(params).toEqual(['the-token'])
+      return { rows: [row({ pollToken: 'the-token' })] }
+    })
+    expect((await getEscalationByToken(foundPool, 'the-token'))?.pollToken).toBe('the-token')
+
+    const missingPool = fakePool(async () => ({ rows: [] }))
+    expect(await getEscalationByToken(missingPool, 'guessed-token')).toBeNull()
   })
 
   it('resolves an escalation with a reply and marks it resolved', async () => {

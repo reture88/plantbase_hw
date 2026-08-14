@@ -7,7 +7,7 @@ import Fastify from 'fastify'
 import { loadApiEnvFromEnv } from './config/env'
 import { registerChatRoute } from './routes/chat.route'
 import { registerCustomerChatRoute } from './routes/customer-chat.route'
-import { registerEscalationsRoute } from './routes/escalations.route'
+import { registerInternalEscalationsRoute } from './routes/escalations.route'
 import { registerQuotesRoute } from './routes/quotes.route'
 
 async function main(): Promise<void> {
@@ -31,7 +31,8 @@ async function main(): Promise<void> {
     // Az eszkalációk saját, írható DB-poolon futnak (nem a runSql/RAG readonly poolján).
     const escalationPool = createWritePool(env.databaseUrl)
 
-    // A nyilvános, hitelesítés nélküli végpont kap rate limitet (bárki hívhatja).
+    // A nyilvános, hitelesítés nélküli végpontok (chat + eszkaláció-pollozás)
+    // kapnak rate limitet — bárki hívhatja őket.
     await app.register(async (customerScope) => {
       await customerScope.register(rateLimit, { max: 20, timeWindow: '10 minutes' })
       registerCustomerChatRoute(customerScope, env, pool, escalationPool, logger, ragLogger)
@@ -39,7 +40,7 @@ async function main(): Promise<void> {
     // A belső (token-védett) eszkalációs végpontok NEM osztoznak a nyilvános
     // limiten — egy forgalmas customer-chat ne tudja kizárni a munkatársat
     // a saját sorának kezeléséből.
-    registerEscalationsRoute(app, env, escalationPool)
+    registerInternalEscalationsRoute(app, env, escalationPool)
   }
 
   app.get('/health', async () => ({ status: 'ok' }))

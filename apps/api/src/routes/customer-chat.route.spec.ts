@@ -4,10 +4,12 @@ import type { ApiEnv } from '../config/env'
 
 const streamCustomerChatMock = vi.fn()
 const saveGeneratedDocumentMock = vi.fn()
+const getEscalationByTokenMock = vi.fn()
 
 vi.mock('@plantbase/core', () => ({
   streamCustomerChat: streamCustomerChatMock,
   saveGeneratedDocument: saveGeneratedDocumentMock,
+  getEscalationByToken: getEscalationByTokenMock,
   EMBEDDING_MODEL_ID: 'text-embedding-3-small',
   HELPER_MODEL_ID: 'gpt-5.4-mini',
 }))
@@ -40,6 +42,7 @@ function parseSseEvents(body: string): unknown[] {
 beforeEach(() => {
   streamCustomerChatMock.mockReset()
   saveGeneratedDocumentMock.mockReset()
+  getEscalationByTokenMock.mockReset()
 })
 
 function buildApp() {
@@ -97,7 +100,7 @@ describe('POST /api/customer/chat', () => {
       type: 'done',
       source: 'knowledge_base',
       sources: [{ title: 'Aloe', source: 'https://example.com' }],
-      escalationId: undefined,
+      escalationToken: undefined,
       fileUrl: '/api/quotes/gondozas.pdf',
       fileFormat: 'pdf',
     })
@@ -108,13 +111,13 @@ describe('POST /api/customer/chat', () => {
     streamCustomerChatMock.mockResolvedValueOnce({
       events: events(
         { type: 'notice', text: 'egy kollégánk hamarosan válaszol' },
-        { type: 'escalated', escalationId: 42 },
+        { type: 'escalated', escalationToken: 'opaque-token-42' },
       ),
       result: Promise.resolve({
         answer: 'egy kollégánk hamarosan válaszol',
         source: 'escalated',
         wantsFileExport: false,
-        escalationId: 42,
+        escalationToken: 'opaque-token-42',
       }),
     })
     const app = buildApp()
@@ -127,12 +130,12 @@ describe('POST /api/customer/chat', () => {
     const parsed = parseSseEvents(response.body)
 
     expect(parsed[0]).toEqual({ type: 'notice', text: 'egy kollégánk hamarosan válaszol' })
-    expect(parsed[1]).toEqual({ type: 'escalated', escalationId: 42 })
+    expect(parsed[1]).toEqual({ type: 'escalated', escalationToken: 'opaque-token-42' })
     expect(parsed.at(-1)).toEqual({
       type: 'done',
       source: 'escalated',
       sources: undefined,
-      escalationId: 42,
+      escalationToken: 'opaque-token-42',
       fileUrl: undefined,
       fileFormat: undefined,
     })
@@ -153,10 +156,42 @@ describe('POST /api/customer/chat', () => {
       type: 'done',
       source: 'catalog',
       sources: undefined,
-      escalationId: undefined,
+      escalationToken: undefined,
       fileUrl: undefined,
       fileFormat: undefined,
     })
     expect(saveGeneratedDocumentMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/customer/escalations/:token', () => {
+  it('returns 404 for an unknown/guessed token — no id-enumeration path', async () => {
+    getEscalationByTokenMock.mockResolvedValueOnce(null)
+    const app = buildApp()
+
+    const response = await app.inject({ method: 'GET', url: '/api/customer/escalations/guessed-token' })
+
+    expect(response.statusCode).toBe(404)
+  })
+
+  it('returns only status+reply for a valid token, nothing else about the case', async () => {
+    getEscalationByTokenMock.mockResolvedValueOnce({
+      id: 42,
+      pollToken: 'opaque-token-42',
+      question: 'Mérgező-e a filodendron a macskámnak?',
+      contextSnapshot: 'x',
+      reason: 'nem grounded',
+      status: 'resolved',
+      reply: 'Igen, enyhén mérgező.',
+      createdAt: new Date(),
+      resolvedAt: new Date(),
+    })
+    const app = buildApp()
+
+    const response = await app.inject({ method: 'GET', url: '/api/customer/escalations/opaque-token-42' })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({ status: 'resolved', reply: 'Igen, enyhén mérgező.' })
+    expect(getEscalationByTokenMock).toHaveBeenCalledWith({}, 'opaque-token-42')
   })
 })

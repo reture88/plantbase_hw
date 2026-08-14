@@ -32,11 +32,11 @@ type ChatPanelProps = {
   emptyStateText: string
   onSend: (question: string, onDelta: (text: string) => void, onNotice: (text: string) => void) => Promise<ChatDone>
   /**
-   * Ha meg van adva, egy eszkalált (`escalationId`-t kapott) üzenetnél a panel
-   * ezt hívja néhány másodpercenként, amíg a válasz fel nem oldódik — ekkor a
-   * munkatárs válasza az üzenet szövegeként jelenik meg.
+   * Ha meg van adva, egy eszkalált (`escalationToken`-t kapott) üzenetnél a
+   * panel ezt hívja néhány másodpercenként, amíg a válasz fel nem oldódik —
+   * ekkor a munkatárs válasza az üzenet szövegeként jelenik meg.
    */
-  pollEscalation?: (escalationId: number) => Promise<{ status: 'open' | 'resolved'; reply: string | null }>
+  pollEscalation?: (escalationToken: string) => Promise<{ status: 'open' | 'resolved'; reply: string | null }>
 }
 
 export function ChatPanel({ placeholder, emptyStateText, onSend, pollEscalation }: ChatPanelProps) {
@@ -54,11 +54,11 @@ export function ChatPanel({ placeholder, emptyStateText, onSend, pollEscalation 
     setMessages((prev) => prev.map((message) => (message.id === id ? { ...message, text: message.text + delta } : message)))
   }
 
-  function pollEscalationUntilResolved(messageId: number, escalationId: number) {
+  function pollEscalationUntilResolved(messageId: number, escalationToken: string) {
     if (!pollEscalation) return
     const interval = setInterval(async () => {
       try {
-        const status = await pollEscalation(escalationId)
+        const status = await pollEscalation(escalationToken)
         if (status.status === 'resolved') {
           clearInterval(interval)
           updateMessage(messageId, { text: status.reply ?? '', awaitingEscalation: false })
@@ -96,10 +96,10 @@ export function ChatPanel({ placeholder, emptyStateText, onSend, pollEscalation 
         sources: done.sources,
         fileUrl: done.fileUrl,
         fileFormat: done.fileFormat,
-        awaitingEscalation: done.escalationId !== undefined,
+        awaitingEscalation: done.escalationToken !== undefined,
       })
-      if (done.escalationId !== undefined) {
-        pollEscalationUntilResolved(assistantMessageId, done.escalationId)
+      if (done.escalationToken !== undefined) {
+        pollEscalationUntilResolved(assistantMessageId, done.escalationToken)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ismeretlen hiba történt.')

@@ -91,6 +91,7 @@ describe('streamCustomerChat', () => {
     })
     createEscalationMock.mockResolvedValueOnce({
       id: 42,
+      pollToken: 'opaque-token-42',
       question: 'Mérgező-e a filodendron a macskámnak?',
       contextSnapshot: 'A tudásbázis nem tartalmazott elég releváns forrást a kérdés megválaszolásához (grounded: false).',
       reason: 'nem grounded',
@@ -110,10 +111,10 @@ describe('streamCustomerChat', () => {
     })
     expect(events).toEqual([
       { type: 'notice', text: expect.stringContaining('kollégánk') },
-      { type: 'escalated', escalationId: 42 },
+      { type: 'escalated', escalationToken: 'opaque-token-42' },
     ])
     expect(result.source).toBe('escalated')
-    expect(result.escalationId).toBe(42)
+    expect(result.escalationToken).toBe('opaque-token-42')
     expect(result.wantsFileExport).toBe(false)
   })
 
@@ -125,6 +126,7 @@ describe('streamCustomerChat', () => {
     })
     createEscalationMock.mockResolvedValueOnce({
       id: 7,
+      pollToken: 'opaque-token-7',
       question: 'q',
       contextSnapshot: 'x',
       reason: 'nem grounded',

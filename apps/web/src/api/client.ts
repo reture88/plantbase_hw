@@ -5,7 +5,8 @@ export type ChatDone = {
   sources?: { title: string; source: string }[]
   fileUrl?: string
   fileFormat?: 'xlsx' | 'pdf'
-  escalationId?: number
+  /** Opaque token a GET /api/customer/escalations/:token pollozásához — SOSEM a sorszámozott id. */
+  escalationToken?: string
 }
 
 export type ChatCallbacks = {
@@ -16,7 +17,7 @@ export type ChatCallbacks = {
 type SseEvent =
   | { type: 'text-delta'; text: string }
   | { type: 'notice'; text: string }
-  | { type: 'escalated'; escalationId: number }
+  | { type: 'escalated'; escalationToken: string }
   | { type: 'error'; message: string }
   | ({ type: 'done' } & ChatDone)
 
@@ -57,7 +58,7 @@ async function streamChatSse(endpoint: string, question: string, callbacks: Chat
       } else if (event.type === 'notice') {
         callbacks.onNotice(event.text)
       } else if (event.type === 'escalated') {
-        // Nincs külön kezelés itt — a `done` esemény úgyis hozza az escalationId-t.
+        // Nincs külön kezelés itt — a `done` esemény úgyis hozza az escalationTokent.
       } else if (event.type === 'error') {
         throw new Error(event.message)
       } else if (event.type === 'done') {
@@ -66,7 +67,7 @@ async function streamChatSse(endpoint: string, question: string, callbacks: Chat
           sources: event.sources,
           fileUrl: event.fileUrl,
           fileFormat: event.fileFormat,
-          escalationId: event.escalationId,
+          escalationToken: event.escalationToken,
         }
       }
     }
@@ -88,8 +89,8 @@ export function askCustomer(question: string, callbacks: ChatCallbacks): Promise
 
 export type EscalationStatus = { status: 'open' | 'resolved'; reply: string | null }
 
-export async function pollEscalation(escalationId: number): Promise<EscalationStatus> {
-  const response = await fetch(`/api/customer/escalations/${escalationId}`)
+export async function pollEscalation(escalationToken: string): Promise<EscalationStatus> {
+  const response = await fetch(`/api/customer/escalations/${encodeURIComponent(escalationToken)}`)
   if (!response.ok) {
     throw new Error(`Nem sikerült lekérdezni az eszkaláció státuszát (HTTP ${response.status}).`)
   }

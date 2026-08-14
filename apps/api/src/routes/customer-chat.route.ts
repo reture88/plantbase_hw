@@ -1,4 +1,4 @@
-import { EMBEDDING_MODEL_ID, HELPER_MODEL_ID, saveGeneratedDocument, streamCustomerChat, type JsonlLogger, type RagJsonlLogger } from '@plantbase/core'
+import { EMBEDDING_MODEL_ID, getEscalationByToken, HELPER_MODEL_ID, saveGeneratedDocument, streamCustomerChat, type JsonlLogger, type RagJsonlLogger } from '@plantbase/core'
 import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import { z } from 'zod'
@@ -54,7 +54,7 @@ export function registerCustomerChatRoute(app: FastifyInstance, env: ApiEnv, poo
         type: 'done',
         source: result.source,
         sources: result.sources,
-        escalationId: result.escalationId,
+        escalationToken: result.escalationToken,
         fileUrl: savedDocument ? `/api/quotes/${encodeURIComponent(savedDocument.filename)}` : undefined,
         fileFormat: savedDocument ? 'pdf' : undefined,
       })
@@ -63,5 +63,19 @@ export function registerCustomerChatRoute(app: FastifyInstance, env: ApiEnv, poo
     } finally {
       endSse(reply)
     }
+  })
+
+  // A widget ezt pollozza, amíg egy munkatárs fel nem oldja az esetet.
+  // Szándékosan NINCS hitelesítés rajta (nincs ügyfél-fiók/session, amihez
+  // köthetnénk) — a védelmet a kitalálhatatlan, csak a saját eszkalációjához
+  // kapott `token` adja (lásd `escalation-repository.ts` `getEscalationByToken`),
+  // NEM a sorszámozott id (az kitalálható/végigszámolható lenne — IDOR).
+  // Ugyanabban a rate-limitelt scope-ban fut, mint a POST /api/customer/chat.
+  app.get<{ Params: { token: string } }>('/api/customer/escalations/:token', async (request, reply) => {
+    const escalation = await getEscalationByToken(escalationPool, request.params.token)
+    if (!escalation) {
+      return reply.status(404).send({ error: 'Az eszkaláció nem található.' })
+    }
+    return reply.send({ status: escalation.status, reply: escalation.reply })
   })
 }

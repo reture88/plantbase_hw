@@ -14,14 +14,20 @@ export type CustomerChatSource = 'catalog' | 'knowledge_base' | 'escalated'
 export type CustomerChatEvent =
   | { type: 'notice'; text: string }
   | { type: 'text-delta'; text: string }
-  | { type: 'escalated'; escalationId: number }
+  | { type: 'escalated'; escalationToken: string }
 
 export type CustomerChatResult = {
   answer: string
   source: CustomerChatSource
   wantsFileExport: boolean
   sources?: { title: string; source: string }[]
-  escalationId?: number
+  /**
+   * Opaque, kitalálhatatlan token — ezzel pollozza a kliens a
+   * `GET /api/customer/escalations/:token`-t. SZÁNDÉKOSAN nem a
+   * numerikus `Escalation.id`: az sorszámozott, tehát bárki
+   * végigszámolhatná és elolvashatná más ügyfelek kérdését/válaszát (IDOR).
+   */
+  escalationToken?: string
 }
 
 export type CustomerChatStream = {
@@ -118,8 +124,8 @@ async function streamKnowledgeChatWithEscalation(question: string, config: Custo
         reason: 'nem grounded',
       })
       yield { type: 'notice', text: ESCALATION_NOTICE }
-      yield { type: 'escalated', escalationId: escalation.id }
-      resolveResult({ answer: ESCALATION_NOTICE, source: 'escalated', wantsFileExport: false, escalationId: escalation.id })
+      yield { type: 'escalated', escalationToken: escalation.pollToken }
+      resolveResult({ answer: ESCALATION_NOTICE, source: 'escalated', wantsFileExport: false, escalationToken: escalation.pollToken })
     } catch (error) {
       rejectResult(error)
       throw error

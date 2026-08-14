@@ -1,4 +1,4 @@
-import { getEscalation, listOpenEscalations, resolveEscalation } from '@plantbase/core'
+import { listOpenEscalations, resolveEscalation } from '@plantbase/core'
 import type { FastifyInstance } from 'fastify'
 import type { Pool } from 'pg'
 import { z } from 'zod'
@@ -16,7 +16,14 @@ function checkInternalToken(env: ApiEnv, authorizationHeader: string | undefined
   return authorizationHeader === `Bearer ${env.internalToken}`
 }
 
-export function registerEscalationsRoute(app: FastifyInstance, env: ApiEnv, escalationPool: Pool): void {
+/**
+ * Kizárólag a belső (staff) nézetnek — a numerikus `id`-t itt biztonságos
+ * kulcsként használni, mert a hozzáférést a token-ellenőrzés adja, nem az
+ * azonosító kitalálhatatlansága. Az ügyfél-oldali pollozó végpont (amihez
+ * NINCS hitelesítés) emiatt NEM itt van, hanem `customer-chat.route.ts`-ben,
+ * és külön, opaque tokent használ (lásd `escalation-repository.ts`).
+ */
+export function registerInternalEscalationsRoute(app: FastifyInstance, env: ApiEnv, escalationPool: Pool): void {
   app.get('/api/internal/escalations', async (request, reply) => {
     if (!checkInternalToken(env, request.headers.authorization)) {
       return reply.status(401).send({ error: 'Érvénytelen vagy hiányzó belső token.' })
@@ -43,20 +50,5 @@ export function registerEscalationsRoute(app: FastifyInstance, env: ApiEnv, esca
       return reply.status(404).send({ error: 'Az eszkaláció nem található.' })
     }
     return reply.send({ escalation: resolved })
-  })
-
-  // Az ügyfél-widget ezt pollozza, amíg egy munkatárs fel nem oldja az esetet
-  // — nincs autentikáció rajta, mert csak a saját (előzőleg kapott)
-  // escalationId-jét kérdezheti le vele, más ügyfél adatát nem éri el.
-  app.get<{ Params: { id: string } }>('/api/customer/escalations/:id', async (request, reply) => {
-    const id = Number(request.params.id)
-    if (!Number.isInteger(id)) {
-      return reply.status(400).send({ error: 'Érvénytelen eszkaláció-azonosító.' })
-    }
-    const escalation = await getEscalation(escalationPool, id)
-    if (!escalation) {
-      return reply.status(404).send({ error: 'Az eszkaláció nem található.' })
-    }
-    return reply.send({ status: escalation.status, reply: escalation.reply })
   })
 }

@@ -61,6 +61,12 @@ model KnowledgeChunk {
 
 model Escalation {
   id              Int       @id @default(autoincrement())
+  // Opaque, kitalálhatatlan token a NEM hitelesített ügyfél-pollozó
+  // végponthoz (GET /api/customer/escalations/:token) — a sorszámozott
+  // `id` önmagában IDOR: bárki végigszámolhatná és elolvashatná más
+  // ügyfelek kérdését/válaszát. A belső (INTERNAL_TOKEN-nel védett)
+  // nézet továbbra is a numerikus `id`-t használja.
+  pollToken       String    @unique
   question        String
   contextSnapshot String
   reason          String
