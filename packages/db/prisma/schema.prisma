@@ -58,3 +58,16 @@ model KnowledgeChunk {
   @@unique([documentId, chunkIndex])
   @@map("knowledge_chunks")
 }
+
+model Escalation {
+  id              Int       @id @default(autoincrement())
+  question        String
+  contextSnapshot String
+  reason          String
+  status          String    @default("open")
+  reply           String?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  @@map("escalations")
+}
