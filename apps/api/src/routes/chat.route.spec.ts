@@ -21,6 +21,9 @@ const env: ApiEnv = {
   anthropicModel: 'claude-test',
   openaiApiKey: 'test-openai-key',
   databaseUrlReadonly: 'postgres://test',
+  databaseUrl: 'postgres://test-write',
+  customerChatEnabled: true,
+  internalToken: 'test-token',
 }
 
 async function* events(...values: unknown[]) {
