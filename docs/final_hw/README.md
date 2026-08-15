@@ -37,8 +37,6 @@ CUSTOMER_CHAT_ENABLED="true"   # "false"-ra állítva a /api/customer/* és /api
 INTERNAL_TOKEN="valassz-egy-sajat-tokent"   # az /internal/escalations nézet ezt kéri be
 ```
 
-**Fontos, ha a böngésződben már korábban nyitva volt a `/customer` vagy `/internal/escalations` oldal**: a fejlesztés közben egy biztonsági javítás (`fix(security): close IDOR on the customer escalation-poll endpoint`) átnevezte az eszkaláció-azonosító mezőt a streamben — egy régebben nyitva hagyott fül a régi JavaScript-kóddal futhat tovább, ami emiatt nem indítja el a válasz-pollozást. **Mindig tölts be egy friss lapot** (vagy nyomj kemény frissítést, Ctrl+Shift+R), mielőtt a demót kipróbálod.
-
 ## Demó-forgatókönyv (mindhárom eset)
 
 1. **Katalógus-kérdés** — nyisd meg `http://localhost:5173/customer`-t, kérdezd: *"Milyen kaktuszok vannak 5000 Ft alatt?"* → azonnali, streamelt válasz a `products` táblából.
