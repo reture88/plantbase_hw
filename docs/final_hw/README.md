@@ -28,12 +28,16 @@ pnpm api                # apps/api, :3333
 npx nx serve web        # apps/web, :5173
 ```
 
-Az `.env`-ben két új változó van (lásd `.env.example`):
+## Mi kell hozzá
+
+Minden, ami a gyökér `README.md`-ben (Anthropic + OpenAI API-kulcs, Postgres). Ezen felül az `.env`-ben **két új változó** kell (lásd `.env.example`):
 
 ```bash
 CUSTOMER_CHAT_ENABLED="true"   # "false"-ra állítva a /api/customer/* és /api/internal/* route-ok TÉNYLEGESEN nem regisztrálódnak
 INTERNAL_TOKEN="valassz-egy-sajat-tokent"   # az /internal/escalations nézet ezt kéri be
 ```
+
+**Fontos, ha a böngésződben már korábban nyitva volt a `/customer` vagy `/internal/escalations` oldal**: a fejlesztés közben egy biztonsági javítás (`fix(security): close IDOR on the customer escalation-poll endpoint`) átnevezte az eszkaláció-azonosító mezőt a streamben — egy régebben nyitva hagyott fül a régi JavaScript-kóddal futhat tovább, ami emiatt nem indítja el a válasz-pollozást. **Mindig tölts be egy friss lapot** (vagy nyomj kemény frissítést, Ctrl+Shift+R), mielőtt a demót kipróbálod.
 
 ## Demó-forgatókönyv (mindhárom eset)
 
